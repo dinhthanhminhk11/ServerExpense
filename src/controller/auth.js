@@ -10,6 +10,7 @@ class Auth {
     async register(req, res) {
         try {
             //   const otpGenerated = generateOTP();
+            console.log("okoko")
             const { email, phone } = req.body;
 
             const exist_email = await User.findOne({ email }).exec();
@@ -30,6 +31,7 @@ class Auth {
 
             const dataUserRequest = {
                 email: req.body.email,
+                fullName: req.body.fullName,
                 phone: req.body.phone,
                 password: bcyrpt.hashSync(req.body.password, 10),
                 tokenDevice: req.body.tokenDevice
@@ -38,7 +40,7 @@ class Auth {
 
             const data = {
                 _id: user._id,
-                fullname: user.fullname,
+                fullname: user.fullName,
                 email: user.email,
                 phone: user.phone,
                 tokenDevice: user.tokenDevice,
@@ -180,54 +182,60 @@ class Auth {
             const { username, password } = req.body;
             const filter = {};
             if (rules.email.test(username)) {
-              filter.email = username;
+                filter.email = username;
             } else if (rules.phone.test(username)) {
-              filter.phone = username;
+                filter.phone = username;
             } else {
-              return res.status(400).json(formatResponseError({ code: '404' }, false, 'invalid_username'));
+                return res.status(400).json(formatResponseError({ code: '404' }, false, 'invalid_username'));
             }
-      
+
             const checkEmail = await User.findOne({ email: req.body.username });
             const checkPhone = await User.findOne({ phone: req.body.username });
-      
+
             if (isGmail(req.body.username)) {
-              if (!checkEmail) return res.status(200).json(
-                formatResponseError({ code: '404' }, false, 'Email chưa được đăng kí')
-              );
+                if (!checkEmail) return res.status(200).json(
+                    formatResponseError({ code: '404' }, false, 'Email chưa được đăng kí')
+                );
             }
-      
+
             if (isPhoneNumber(req.body.username)) {
-              if (!checkPhone) return res.status(200).json(
-                formatResponseError({ code: '404' }, false, 'Số điện thoại chưa được đăng kí')
-              );
+                if (!checkPhone) return res.status(200).json(
+                    formatResponseError({ code: '404' }, false, 'Số điện thoại chưa được đăng kí')
+                );
             }
-      
+
             const user = await User.findOne(filter).exec();
-      
+
             const checkPass = bcyrpt.compareSync(req.body.password, user.password);
-      
+
             if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác'));
-      
+
             const accessToken = jwt.sign({ id: user.id }, config.secret, {
-              // expiresIn: 86400 // 24 hours
+                // expiresIn: 86400 // 24 hours
             });
-      
-            const data = {
-              _id: user._id,
-              fullName: user.fullName,
-              email: user.email,
-              phone: user.phone,
-              tokenDevice: user.tokenDevice,
-              image: user.image,
-              accessToken,
-              verified: user.verified
-            };
-      
-            return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
-          } catch (error) {
+
+            if (user.verified) {
+                const data = {
+                    _id: user._id,
+                    fullName: user.fullName,
+                    email: user.email,
+                    phone: user.phone,
+                    tokenDevice: user.tokenDevice,
+                    image: user.image,
+                    accessToken,
+                    verified: user.verified
+                };
+
+                return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
+            } else {
+                res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản chưa xác thực hãy xác thực tài khoản'));
+            }
+
+
+        } catch (error) {
             console.log(error);
             return res.status(400).json(formatResponseError({ code: 'invalid_token' }, false, 'Lỗi đăng nhập'));
-          }
+        }
     }
 
 }
@@ -237,11 +245,11 @@ class Auth {
 function isPhoneNumber(input) {
     const phoneRegex = /^\d{10}$/;
     return phoneRegex.test(input);
-  }
-  
-  function isGmail(input) {
+}
+
+function isGmail(input) {
     const gmailRegex = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
     return gmailRegex.test(input);
-  }
+}
 
 export default new Auth();
