@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import User from '../controller/auth';
-import { setAuth } from '../middlewares/auth';
 
 const router = Router();
 router.post('/auth/register',  User.register);
 router.post('/auth/generate-otp' , User.gennerateOTP)
-router.post('/auth/verifyOTP' , User.verifyRegister)
+router.post('/auth/verifyOTP' , User.verifyOTP)
 router.post('/auth/login' , User.login)
-
+router.route('/auth/getUserByToken').get([User.verifyToken, User.isModerator],User.moderatorBoard)
 export default router;

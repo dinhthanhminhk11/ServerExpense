@@ -1,8 +1,9 @@
-export const formatResponseError = (errors ,status, message) => ({
+export const formatResponseError = (errors ,status, message, type) => ({
   errors,
   message: {
     status,
-    message
+    message,
+    type
   }
 });
 

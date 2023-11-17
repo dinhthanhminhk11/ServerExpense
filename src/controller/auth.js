@@ -39,11 +39,6 @@ class Auth {
             const user = await new User(dataUserRequest).save();
 
             const data = {
-                _id: user._id,
-                fullname: user.fullName,
-                email: user.email,
-                phone: user.phone,
-                tokenDevice: user.tokenDevice,
                 verified: user.verified
             };
             return res.status(200).json(formatResponseSuccess(data, true, 'Đăng kí thành công'));
@@ -99,7 +94,7 @@ class Auth {
         }
     }
 
-    async verifyRegister(req, res) {
+    async verifyOTP(req, res) {
         const email = req.body.email;
         const OTP = req.body.OTP;
 
@@ -186,7 +181,7 @@ class Auth {
             } else if (rules.phone.test(username)) {
                 filter.phone = username;
             } else {
-                return res.status(400).json(formatResponseError({ code: '404' }, false, 'invalid_username'));
+                return res.status(200).json(formatResponseError({ code: '404' }, false, 'invalid_username'));
             }
 
             const checkEmail = await User.findOne({ email: req.body.username });
@@ -208,7 +203,7 @@ class Auth {
 
             const checkPass = bcyrpt.compareSync(req.body.password, user.password);
 
-            if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác'));
+            if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác' ));
 
             const accessToken = jwt.sign({ id: user.id }, config.secret, {
                 // expiresIn: 86400 // 24 hours
@@ -228,16 +223,48 @@ class Auth {
 
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
             } else {
-                res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản chưa xác thực hãy xác thực tài khoản'));
+                res.status(200).json(formatResponseError({ code: '404', }, false, 'Tài khoản chưa xác thực hãy xác thực tài khoản', 1122));
             }
-
-
         } catch (error) {
             console.log(error);
-            return res.status(400).json(formatResponseError({ code: 'invalid_token' }, false, 'Lỗi đăng nhập'));
+            return res.status(200).json(formatResponseError({ code: '400' }, false, 'Lỗi đăng nhập'));
         }
     }
 
+
+    async verifyToken(req, res, next) {
+        let token = req.headers["x-access-token"];
+
+        if (!token) {
+            return res.status(403).send({ message: "No token provided!" });
+        }
+
+        jwt.verify(token, config.secret, (err, decoded) => {
+            if (err) {
+                return res.status(401).send({ message: "Unauthorized!" });
+            }
+            req.userId = decoded.id;
+            next();
+        });
+    }
+
+    async isModerator(req, res) {
+        const user = await User.findById(req.userId)
+        const data = {
+            _id: user._id,
+            fullName: user.fullName,
+            email: user.email,
+            phone: user.phone,
+            tokenDevice: user.tokenDevice,
+            image: user.image,
+            verified: user.verified
+        };
+        return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
+    }
+
+    async moderatorBoard(req, res) {
+        res.status(200).send("User Content.");
+    }
 }
 
 
