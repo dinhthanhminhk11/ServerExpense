@@ -164,7 +164,16 @@ class Auth {
 
             await user.save();
 
-            res.status(200).json(formatResponseSuccessNoData(true, 'Xác nhận thành công'));
+            const accessToken = jwt.sign({ id: user.id }, config.secret, {
+                // expiresIn: 86400 // 24 hours
+            });
+
+            console.log(accessToken);
+            const data = {
+                accessToken
+            }
+
+            res.status(200).json(formatResponseSuccess(data, true, 'Xác nhận thành công'));
             console.log("User logged in successfully");
         } catch (err) {
             console.log(err);
@@ -203,7 +212,7 @@ class Auth {
 
             const checkPass = bcyrpt.compareSync(req.body.password, user.password);
 
-            if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác' ));
+            if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác'));
 
             const accessToken = jwt.sign({ id: user.id }, config.secret, {
                 // expiresIn: 86400 // 24 hours
@@ -249,17 +258,31 @@ class Auth {
     }
 
     async isModerator(req, res) {
-        const user = await User.findById(req.userId)
-        const data = {
-            _id: user._id,
-            fullName: user.fullName,
-            email: user.email,
-            phone: user.phone,
-            tokenDevice: user.tokenDevice,
-            image: user.image,
-            verified: user.verified
-        };
-        return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
+        try {
+            const user = await User.findById(req.userId);
+            if (!user) {
+                return res.status(404).json(formatResponseError(null, false, 'Người dùng không tồn tại'));
+            }
+            if (user.verified) {
+                const data = {
+                    _id: user._id,
+                    fullName: user.fullName,
+                    email: user.email,
+                    phone: user.phone,
+                    tokenDevice: user.tokenDevice,
+                    image: user.image,
+                    verified: user.verified
+                };
+                return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
+            } else {
+                const data = {
+                    verified: user.verified
+                };
+                return res.status(200).json(formatResponseSuccess(data, false, 'Tài khoản chưa xác thực'));
+            }
+        } catch (error) {
+            return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
+        }
     }
 
     async moderatorBoard(req, res) {
