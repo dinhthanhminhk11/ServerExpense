@@ -6,6 +6,12 @@ const bcyrpt = require('bcrypt');
 import { rules } from '../constants/rules';
 const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTP } = require("../util/otp");
+const crypto = require('crypto')
+const { createCipheriv, createDecipheriv } = require('crypto');
+
+const NodeRSA = require('node-rsa');
+const rsa = require('../security/rsa');
+const aes = require('../security/aes');
 class Auth {
     async register(req, res) {
         try {
@@ -183,7 +189,12 @@ class Auth {
 
     async login(req, res) {
         try {
-            const { username, password } = req.body;
+            const { key, iv, body } = req.body;
+
+            const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
+            const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
+            const {username , password} = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
+
             const filter = {};
             if (rules.email.test(username)) {
                 filter.email = username;
@@ -195,6 +206,7 @@ class Auth {
 
             const checkEmail = await User.findOne({ email: req.body.username });
             const checkPhone = await User.findOne({ phone: req.body.username });
+
 
             if (isGmail(req.body.username)) {
                 if (!checkEmail) return res.status(200).json(
@@ -210,7 +222,7 @@ class Auth {
 
             const user = await User.findOne(filter).exec();
 
-            const checkPass = bcyrpt.compareSync(req.body.password, user.password);
+            const checkPass = bcyrpt.compareSync(password, user.password);
 
             if (!checkPass) return res.status(200).json(formatResponseError({ code: '404' }, false, 'Tài khoản hoặc mật khẩu không chính xác'));
 
@@ -301,5 +313,41 @@ function isGmail(input) {
     const gmailRegex = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
     return gmailRegex.test(input);
 }
+
+function hashString(input, algorithm) {
+    const bytes = Buffer.from(input, 'utf-8');
+    const hash = crypto.createHash(algorithm).update(bytes).digest('hex');
+    return hash;
+}
+
+const algorithm = 'aes-256-cbc';
+const key = 'REtgV24bDB7xQYoMuypiBASMEaJbc59n';
+const iv = '8d2bc3f0f69426fc';
+
+const encrypt = (data) => {
+    const cipher = createCipheriv(algorithm, key, iv);
+    let crypted = cipher.update(data, 'utf8', 'hex');
+    crypted += cipher.final('hex');
+    return crypted;
+};
+
+const decrypt = (data) => {
+    const decipher = createDecipheriv(algorithm, key, iv);
+    let decrypted = decipher.update(data, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+};
+
+const decrypt2 = (data) => {
+    var decipher = crypto.createDecipher('aes-128-ecb', key);
+
+    var chunks = []
+    chunks.push(decipher.update(new Buffer(data, "base64").toString("binary")));
+    chunks.push(decipher.final('binary'));
+    var txt = chunks.join("");
+    txt = new Buffer(txt, "binary").toString("utf-8");
+};
+
+
 
 export default new Auth();
