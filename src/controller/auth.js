@@ -189,8 +189,9 @@ class Auth {
 
     async login(req, res) {
         try {
-            const { key, iv, body } = req.body;
+            const { key, iv, body } = req.body.data;
 
+            console.log(req.body)
             const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
             const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
             const {username , password} = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
@@ -204,17 +205,17 @@ class Auth {
                 return res.status(200).json(formatResponseError({ code: '404' }, false, 'invalid_username'));
             }
 
-            const checkEmail = await User.findOne({ email: req.body.username });
-            const checkPhone = await User.findOne({ phone: req.body.username });
+            const checkEmail = await User.findOne({ email: username });
+            const checkPhone = await User.findOne({ phone: username });
 
 
-            if (isGmail(req.body.username)) {
+            if (isGmail(username)) {
                 if (!checkEmail) return res.status(200).json(
                     formatResponseError({ code: '404' }, false, 'Email chưa được đăng kí')
                 );
             }
 
-            if (isPhoneNumber(req.body.username)) {
+            if (isPhoneNumber(username)) {
                 if (!checkPhone) return res.status(200).json(
                     formatResponseError({ code: '404' }, false, 'Số điện thoại chưa được đăng kí')
                 );
