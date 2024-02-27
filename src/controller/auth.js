@@ -15,9 +15,12 @@ const aes = require('../security/aes');
 class Auth {
     async register(req, res) {
         try {
-            //   const otpGenerated = generateOTP();
-            console.log("okoko")
-            const { email, phone } = req.body;
+            const { key, iv, body } = req.body.data;
+            console.log("register")
+            console.log(req.body)
+            const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
+            const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
+            const {email, phone , password ,tokenDevice , fullName} = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
 
             const exist_email = await User.findOne({ email }).exec();
 
@@ -36,14 +39,18 @@ class Auth {
             }
 
             const dataUserRequest = {
-                email: req.body.email,
-                fullName: req.body.fullName,
-                phone: req.body.phone,
-                password: bcyrpt.hashSync(req.body.password, 10),
-                tokenDevice: req.body.tokenDevice
+                email: email,
+                fullName: fullName,
+                phone: phone,
+                password: bcyrpt.hashSync(password, 10),
+                tokenDevice: tokenDevice
             };
             const user = await new User(dataUserRequest).save();
 
+            const OTP = generateOTP();
+            user.OTP = OTP;
+            await user.save();
+            sendOTP(email, OTP);
             const data = {
                 verified: user.verified
             };
