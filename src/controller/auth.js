@@ -51,6 +51,7 @@ class Auth {
             user.OTP = OTP;
             await user.save();
             sendOTP(email, OTP);
+            console.log(OTP);
             const data = {
                 verified: user.verified
             };
@@ -62,7 +63,7 @@ class Auth {
     }
 
     async gennerateOTP(req, res) {
-        const email = req.body.email;
+        const { email } = req.body.data;
         try {
             let user = await User.findOne({ email: email });
             if (!user) {
@@ -108,9 +109,8 @@ class Auth {
     }
 
     async verifyOTP(req, res) {
-        const email = req.body.email;
-        const OTP = req.body.OTP;
-
+        const { email , OTP } = req.body.data;
+        console.log('verifyOTP', req.body.data); 
         try {
             const user = await User.findOne({ email: email });
 
@@ -252,6 +252,10 @@ class Auth {
 
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
             } else {
+                const OTP = generateOTP();
+                user.OTP = OTP;
+                await user.save();
+                sendOTP(username, OTP);
                 res.status(200).json(formatResponseError({ code: '404', }, false, 'Tài khoản chưa xác thực hãy xác thực tài khoản', 1122));
             }
         } catch (error) {
