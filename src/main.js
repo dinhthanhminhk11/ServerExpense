@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3001;
 app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());
-
+app.use('/uploads', express.static('uploads'));
 // using router
 routerFiles.forEach((file) => {
   app.use('/api', require(`./routes/${file}`).default);

@@ -8,10 +8,36 @@ const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTP } = require("../util/otp");
 const crypto = require('crypto')
 const { createCipheriv, createDecipheriv } = require('crypto');
-
 const NodeRSA = require('node-rsa');
 const rsa = require('../security/rsa');
 const aes = require('../security/aes');
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const util = require('util');
+const unlinkFile = util.promisify(fs.unlink);
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/'); 
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    },
+});
+
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only images are allowed!'), false);
+    }
+};
+
+const upload = multer({ storage, fileFilter });
+
+
 class Auth {
     async register(req, res) {
         try {
@@ -20,7 +46,7 @@ class Auth {
             console.log(req.body)
             const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
             const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
-            const {email, phone , password ,tokenDevice , fullName} = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
+            const { email, phone, password, tokenDevice, fullName } = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
 
             const exist_email = await User.findOne({ email }).exec();
 
@@ -59,6 +85,65 @@ class Auth {
         } catch (error) {
             console.log('register', error);
             return res.status(400).json(formatResponseError({ code: '404' }, false, 'Error'));
+        }
+    }
+
+    async updateUser(req, res) {
+        try {
+            upload.fields([
+                { name: 'image', maxCount: 1 },
+                { name: 'imageBanner', maxCount: 1 }
+            ])(req, res, async (err) => {
+                console.log(req.body.email)
+                const user = await User.findOne({ email: req.body.email });
+
+                if (!user) {
+                    return res.status(404).json(formatResponseError({ code: '404' }, false, 'Người dùng không tồn tại'));
+                }
+
+                // Xử lý trường 'image'
+                if (req.files && req.files['image']) {
+                    const oldImagePath = `./uploads/${user.image}`;
+                    if (user.image) {
+                        try {
+                            await unlinkFile(oldImagePath);
+                        } catch (error) {
+                            console.log('Lỗi khi xóa hình ảnh cũ:', error);
+                        }
+                    }
+                    user.image = req.files['image'][0].filename;
+                }
+
+                // Xử lý trường 'imageBanner'
+                if (req.files && req.files['imageBanner']) {
+                    const oldImageBannerPath = `./uploads/${user.imageBanner}`;
+                    if (user.imageBanner) {
+                        try {
+                            await unlinkFile(oldImageBannerPath);
+                        } catch (error) {
+                            console.log('Lỗi khi xóa hình ảnh banner cũ:', error);
+                        }
+                    }
+                    user.imageBanner = req.files['imageBanner'][0].filename;
+                }
+
+                // Cập nhật trường 'fullName' nếu được cung cấp
+                if (req.body.fullName) {
+                    user.fullName = req.body.fullName;
+                }
+
+                const updatedUser = await user.save();
+                const data = {
+                    fullName: updatedUser.fullName,
+                    image: req.files && req.files['image'] ? req.files['image'][0].filename : user.image,
+                    imageBanner: req.files && req.files['imageBanner'] ? req.files['imageBanner'][0].filename : user.imageBanner,
+                };
+
+                res.status(200).json(formatResponseSuccess(data, true, 'Cập nhật thành công'));
+            });
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json(formatResponseError({ code: '500' }, false, 'Lỗi máy chủ'));
         }
     }
 
@@ -109,8 +194,8 @@ class Auth {
     }
 
     async verifyOTP(req, res) {
-        const { email , OTP } = req.body.data;
-        console.log('verifyOTP', req.body.data); 
+        const { email, OTP } = req.body.data;
+        console.log('verifyOTP', req.body.data);
         try {
             const user = await User.findOne({ email: email });
 
@@ -201,7 +286,7 @@ class Auth {
             console.log(req.body)
             const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
             const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
-            const {username , password} = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
+            const { username, password } = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
 
             const filter = {};
             if (rules.email.test(username)) {
@@ -247,7 +332,8 @@ class Auth {
                     tokenDevice: user.tokenDevice,
                     image: user.image,
                     accessToken,
-                    verified: user.verified
+                    verified: user.verified,
+                    imageBanner : user.imageBanner
                 };
 
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
@@ -295,7 +381,8 @@ class Auth {
                     phone: user.phone,
                     tokenDevice: user.tokenDevice,
                     image: user.image,
-                    verified: user.verified
+                    verified: user.verified,
+                    imageBanner : user.imageBanner
                 };
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
             } else {
