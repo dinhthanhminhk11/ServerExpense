@@ -11,12 +11,13 @@ const app = express();
 
 const routerFiles = fs.readdirSync('./src/routes');
 const PORT = process.env.PORT || 3001;
-
+const path = require('path');
 // middlewares
 app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());
 app.use('/uploads', express.static('uploads'));
+app.use('/audio', express.static(path.resolve(__dirname, '..', 'audio')));
 // using router
 routerFiles.forEach((file) => {
   app.use('/api', require(`./routes/${file}`).default);

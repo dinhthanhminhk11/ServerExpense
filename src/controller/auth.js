@@ -34,9 +34,7 @@ const fileFilter = (req, file, cb) => {
         cb(new Error('Only images are allowed!'), false);
     }
 };
-
 const upload = multer({ storage, fileFilter });
-
 
 class Auth {
     async register(req, res) {
@@ -353,7 +351,7 @@ class Auth {
 
     async verifyToken(req, res, next) {
         let token = req.headers["x-access-token"];
-
+        console.log(token); 
         if (!token) {
             return res.status(403).send({ message: "No token provided!" });
         }
