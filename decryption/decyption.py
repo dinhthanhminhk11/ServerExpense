@@ -4,7 +4,7 @@ link = input("Nhập liên kết m3u8: ")
 
 user_agent = "Mozilla/5.0 (Linux; Android 10; SM-G960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36"
 
-subprocess.run(['ffmpeg', '-user_agent', user_agent, '-i', link, 'track.mp3'])
+subprocess.run(['ffmpeg', '-user_agent', user_agent, '-i', link, 'doiloicuamotnguoitungbiphanset.mp3'])
 
 
 

@@ -1,4 +1,5 @@
 import { formatResponseError, formatResponseSuccess, formatResponseSuccessNoData } from '../config';
+import Album from '../models/album';
 import Song from '../models/song';
 const mm = require('music-metadata');
 const fs = require('fs');
@@ -7,6 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const { promisify } = require('util');
 const exec = promisify(require('child_process').exec);
+const { execq } = require('child_process');
 const os = require('os');
 const { spawn } = require('child_process');
 const storage = multer.diskStorage({
@@ -48,14 +50,21 @@ class SongClass {
 
                 const metadata = await mm.parseFile(req.file.path);
                 const durationInSeconds = metadata.format.duration;
-
+                const durationInSecondsRounded = Math.round(durationInSeconds);
+                const dataAlbum = await Album.findById(req.body.albumIdString) 
                 const dataSong = {
                     title: req.body.title,
                     trackNumber: req.body.trackNumber,
-                    year: Date.now(),
-                    duration: durationInSeconds,
+                    duration: durationInSecondsRounded,
                     data: `${req.file.filename}`,
                     dateModified: Date.now(),
+                    artistId: Date.now(),
+                    albumName : dataAlbum.albumName,
+                    artistName : "Test artistName",
+                    composer : "Test composer",
+                    albumArtist : "Test albumArtist",
+                    albumId :  dataAlbum.idAlbum,
+                    albumIdString : req.body.albumIdString
                 };
                 const saveSong = await new Song(dataSong).save();
                 const songId = saveSong._id.toString();
@@ -64,34 +73,21 @@ class SongClass {
                 const newFilePath = path.join(songDirectory, req.file.filename);
                 fs.renameSync(req.file.path, newFilePath);
                 const encKeyPath = path.join(songDirectory, 'enc.key');
-               
 
                 const ffmpegCommand = `ffmpeg -y -i "${newFilePath}" -hls_time 9 -hls_key_info_file "${path.join(songDirectory, 'enc.keyinfo')}" -hls_playlist_type vod -hls_segment_filename "${path.join(songDirectory, 'fileSequence%d.ts')}" "${path.join(songDirectory, 'index.m3u8')}"`;
-
-
-                await Song.findByIdAndUpdate(songId, { dataPath: ffmpegCommand });
+                // console.log("câu lệnh " + ffmpegCommand)
+                // await Song.findByIdAndUpdate(songId, { dataPath: ffmpegCommand });
                 exec(`openssl rand 16 > ${encKeyPath}`, (error, stdout, stderr) => {
                     if (error) {
                         console.error(`Lệnh thất bại: ${error.message}`);
                         return;
                     }
                     if (stderr) {
-                        console.error(`Lỗi: ${stderr}`);
+                        // console.error(`Lỗi: ${stderr}`);
                         return;
                     }
 
-                    fs.readFile(encKeyPath, 'utf-8', (err, data) => {
-                        if (err) {
-                            console.error('Đọc tập tin enc.key thất bại:', err);
-                            // Xử lý lỗi đọc tập tin enc.key ở đây
-                            return;
-                        }
-        
-                        // In ra nội dung của tập tin enc.key
-                        console.log('Nội dung của tập tin enc.key:', data);
-        
-                        // Tiếp tục xử lý hoặc gọi các hàm khác ở đây
-                    });
+
 
                     exec('openssl rand -hex 16', (error, stdout, stderr) => {
                         if (error) {
@@ -99,23 +95,43 @@ class SongClass {
                             return;
                         }
                         if (stderr) {
-                            console.error(`stderr: ${stderr}`);
+                            // console.error(`stderr: ${stderr}`);
                             return;
                         }
                         const randomHex = stdout.trim();
                         const ipAddress = getIPAddress();
-                        const keyInfoContent = `http://${ipAddress}:3000/audio/${songId}/enc.key\nenc.key\n${randomHex}`;
+                        const keyInfoContent = `http://${ipAddress}:3000/audio/${songId}/enc.key\n${encKeyPath}\n${randomHex}`;
                         fs.writeFileSync(path.join(songDirectory, 'enc.keyinfo'), keyInfoContent);
-                        const filePath = path.join(songDirectory, 'enc.keyinfo');
-                        console.log(filePath);
-                        const fileContent = fs.readFileSync(filePath, 'utf-8');
-                        
-                        
+                        // const filePath = path.join(songDirectory, 'enc.keyinfo');
+                        // console.log(filePath);
+                        // const fileContent = fs.readFileSync(filePath, 'utf-8');
                         // const ffmpegCommand = `ffmpeg -y -i ${newFilePath} -hls_time 9 -hls_key_info_file ${path.join(songDirectory, 'enc.keyinfo')} -hls_playlist_type vod -hls_segment_filename "${songId}/fileSequence%d.ts" ${songId}/index.m3u8`;
                         //  console.log(ffmpegCommand);
 
-                        runFFMPEGCommand(ffmpegCommand)
+                        // runFFMPEGCommand(ffmpegCommand)
 
+                        // const ffmpegCommand = `ffmpeg -y -i ${newFilePath} -hls_time 9 -hls_key_info_file ${path.join(songDirectory, 'enc.keyinfo')} -hls_playlist_type vod -hls_segment_filename "${songId}/fileSequence%d.ts" ${songId}/index.m3u8`;
+
+                        fs.readFile(encKeyPath, 'utf-8', (err, data) => {
+                            if (err) {
+                                console.error('Đọc tập tin enc.key thất bại:', err);
+                                return;
+                            }
+
+                            // console.log('Nội dung của tập tin enc.key:', data);
+
+                        });
+                        exec(ffmpegCommand, (error, stdout, stderr) => {
+                            if (error) {
+                                // console.error(`Error: ${error.message}`);
+                                return;
+                            }
+                            if (stderr) {
+                                // console.error(`stderr: ${stderr}`);
+                                return;
+                            }
+                            console.log(`tạo xong m3u8`);
+                        });
                         res.status(200).json(formatResponseSuccess(saveSong, true, 'Lưu thành công'));
                     });
                 });
@@ -123,6 +139,19 @@ class SongClass {
         } catch (error) {
             console.error('addSong error:', error);
             return res.status(500).json(formatResponseError({ code: '500' }, false, 'Lỗi xảy ra trong quá trình thực thi'));
+        }
+    }
+    async getAllSong(req, res) {
+        try {
+            const data = await Song.find()
+            if (data) {
+                res.status(200).json(data);
+            }
+        } catch (error) {
+            console.log(error)
+            return res.status(200).json(
+                formatResponseError({ code: '404' }, false, 'server error')
+            );
         }
     }
 }
@@ -147,37 +176,4 @@ function getIPAddress() {
     return addresses[0];
 }
 
-function escapePath(filePath) {
-    return filePath.replace(/ /g, '\\ ');
-}
-
-async function runFFMPEGCommand(ffmpegCommand) {
-    try {
-        const commandParts = ffmpegCommand.split(' ');
-        const proc = spawn(commandParts[0], commandParts.slice(1), { shell: true });
-
-        proc.stdout.on('data', (data) => {
-            console.error(`================================`);
-            console.log(`FFMPEG stdout: ${data}`);
-        });
-
-        proc.stderr.on('data', (data) => {
-            console.error(`================================`);
-            console.error(`FFMPEG stderr: ${data}`);
-        });
-
-        proc.on('close', (code) => {
-            if (code === 0) {
-                console.error(`================================`);
-                console.log('FFMPEG command executed successfully.');
-            } else {
-                console.error(`================================`);
-                console.error(`FFMPEG command exited with code ${code}`);
-            }
-        });
-    } catch (error) {
-        console.error(`================================`);
-        console.error('Error executing FFMPEG command:', error);
-    }
-}
 export default new SongClass();

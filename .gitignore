@@ -1,6 +1,7 @@
 # Node.js specific
 node_modules/
 audio/
+decryption/
 
 # Logs
 logs

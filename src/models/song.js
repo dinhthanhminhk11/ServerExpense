@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const songSchema = new mongoose.Schema({
+    id :{
+        type: Number,
+        default: Date.now()
+    },
     title : {
         type: String
     },
@@ -7,7 +11,8 @@ const songSchema = new mongoose.Schema({
         type: Number
     },
     year: {
-        type: Number
+        type: Number,
+        default: 2024
     },
     duration: {
         type: Number
@@ -16,7 +21,12 @@ const songSchema = new mongoose.Schema({
         type: String
     },
     dateModified: {
-        type: Number
+        type: Number,
+        default : Date.now()
+    },
+    albumIdString: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Album'
     },
     albumId: {
         type: Number
