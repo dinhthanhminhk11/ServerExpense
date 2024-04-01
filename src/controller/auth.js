@@ -4,6 +4,8 @@ import { formatResponseError, formatResponseSuccess, formatResponseSuccessNoData
 const config = require('../config/auth.config');
 const bcyrpt = require('bcrypt');
 import { rules } from '../constants/rules';
+import album from '../models/album';
+import song from '../models/song';
 const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTP } = require("../util/otp");
 const crypto = require('crypto')
@@ -19,7 +21,7 @@ const util = require('util');
 const unlinkFile = util.promisify(fs.unlink);
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/'); 
+        cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -331,7 +333,7 @@ class Auth {
                     image: user.image,
                     accessToken,
                     verified: user.verified,
-                    imageBanner : user.imageBanner
+                    imageBanner: user.imageBanner
                 };
 
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
@@ -348,10 +350,9 @@ class Auth {
         }
     }
 
-
     async verifyToken(req, res, next) {
         let token = req.headers["x-access-token"];
-        console.log(token); 
+        console.log(token);
         if (!token) {
             return res.status(403).send({ message: "No token provided!" });
         }
@@ -380,7 +381,7 @@ class Auth {
                     tokenDevice: user.tokenDevice,
                     image: user.image,
                     verified: user.verified,
-                    imageBanner : user.imageBanner
+                    imageBanner: user.imageBanner
                 };
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
             } else {
@@ -396,6 +397,34 @@ class Auth {
 
     async moderatorBoard(req, res) {
         res.status(200).send("User Content.");
+    }
+
+    async getArtistAndAlbumAndSongByArtistId(req, res) {
+        try {
+            const idArtist = req.params.id;
+            const dataArtist = await User.findById(idArtist)
+            const albums = await album.find({ artistIdString: idArtist }).lean()
+            const albumIds = albums.map(album => album._id);
+            const songs = await song.find({ albumIdString: { $in: albumIds } }).lean();
+
+            const songsByAlbum = {};
+            songs.forEach(song => {
+                if (!songsByAlbum[song.albumIdString]) {
+                    songsByAlbum[song.albumIdString] = [];
+                }
+                songsByAlbum[song.albumIdString].push(song);
+            });
+
+            albums.forEach(album => {
+                album.songs = songsByAlbum[album._id] || [];
+            });
+
+            res.status(200).json({ id: Date.now(), image: dataArtist.image, albums: albums, isAlbumArtist: true });
+
+        } catch (error) {
+            console.log(error)
+            return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
+        }
     }
 }
 

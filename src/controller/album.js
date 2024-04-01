@@ -1,6 +1,7 @@
 import { formatResponseError, formatResponseSuccess, formatResponseSuccessNoData } from '../config';
 import album from '../models/album';
 import song from '../models/song';
+import user from '../models/user';
 
 
 class AlbumClass {
@@ -8,7 +9,8 @@ class AlbumClass {
         try {
             const data = {
                 albumName: req.body.albumName,
-                artistId: req.body.artistId
+                artistId: req.body.artistId,
+                artistIdString: req.body.artistIdString
             }
             const result = await new album(data).save()
             if (result) {
@@ -51,15 +53,15 @@ class AlbumClass {
         try {
             const albumId = req.params.id;
             const albumData = await album.findOne({ idAlbum: albumId });
-            
+            const artistUser = await user.findById(albumData.artistIdString)
             if (!albumData) {
                 return res.status(404).json({ error: 'Album not found' });
             }
-    
+
             const songs = await song.find({ idAlbum: albumId });
-    
-            res.status(200).json({ idAlbum: albumData.idAlbum, songs: songs });
-            
+
+            res.status(200).json({ idAlbum: albumData.idAlbum, artistIdString: albumData.artistIdString, artistImage: artistUser.image, songs: songs });
+
         }
         catch (error) {
             console.error('getAlbumById error:', error);

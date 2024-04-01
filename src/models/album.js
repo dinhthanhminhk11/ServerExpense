@@ -15,6 +15,10 @@ const albumSchema = new mongoose.Schema({
         type: Number,
         default :currentYear
     },
+    artistIdString: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
 })
 
 module.exports = mongoose.model("Album", albumSchema);

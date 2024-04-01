@@ -50,12 +50,14 @@ class SongClass {
 
                 const metadata = await mm.parseFile(req.file.path);
                 const durationInSeconds = metadata.format.duration;
-                const durationInSecondsRounded = Math.round(durationInSeconds);
+                console.log(durationInSeconds)
+                // const durationInSecondsRounded = Math.round(durationInSeconds);
+                const durationInMillis = Math.round(durationInSeconds * 1000);
                 const dataAlbum = await Album.findById(req.body.albumIdString) 
                 const dataSong = {
                     title: req.body.title,
                     trackNumber: req.body.trackNumber,
-                    duration: durationInSecondsRounded,
+                    duration: durationInMillis,
                     data: `${req.file.filename}`,
                     dateModified: Date.now(),
                     artistId: Date.now(),
