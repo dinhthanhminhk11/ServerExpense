@@ -4,7 +4,8 @@
   "description": "Backend",
   "main": "main.js",
   "scripts": {
-    "start": "nodemon --exec babel-node -e js ./src/main.js"
+    "start": "nodemon --exec babel-node -e js ./src/main.js",
+    "build": "node-gyp configure build"
   },
   "author": "",
   "license": "ISC",
@@ -28,6 +29,8 @@
     "nodemailer": "^6.7.2",
     "nodemon": "^2.0.22",
     "otp-generator": "^4.0.0",
-    "socket.io": "^4.6.1"
+    "socket.io": "^4.6.1",
+    "nan": "^2.20.0",
+    "node-gyp": "^10.2.0"
   }
 }

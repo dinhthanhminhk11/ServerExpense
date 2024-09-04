@@ -5,12 +5,14 @@ import fs from 'fs';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import socket from 'socket.io';
-
+const addon = require('../build/Release/addon');
 dotenv.config();
 const app = express();
 
 const routerFiles = fs.readdirSync('./src/routes');
 const PORT = process.env.PORT || 3001;
+const key = process.env.KEY_128
+const iv = process.env.IV_128
 const path = require('path');
 // middlewares
 app.use(morgan('tiny'));
@@ -25,6 +27,7 @@ routerFiles.forEach((file) => {
 
 const server = app.listen(PORT, () => {
   console.info(`Server listening on port ${PORT}`);
+  addon.init(key, iv)
 });
 
 mongoose.set('strictQuery', true);
@@ -34,7 +37,6 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
     family: 4
-    // Version node khác nhau chạy sẽ bị lỗi
   })
   .then(() => {
     console.info('Connect database successfully');

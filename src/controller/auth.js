@@ -8,12 +8,7 @@ import album from '../models/album';
 import song from '../models/song';
 const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTP } = require("../util/otp");
-const crypto = require('crypto')
-const { createCipheriv, createDecipheriv } = require('crypto');
-const NodeRSA = require('node-rsa');
-const rsa = require('../security/rsa');
-const aes = require('../security/aes');
-
+const encrypt = require('../../build/Release/addon');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -41,12 +36,8 @@ const upload = multer({ storage, fileFilter });
 class Auth {
     async register(req, res) {
         try {
-            const { key, iv, body } = req.body.data;
-            console.log("register")
-            console.log(req.body)
-            const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
-            const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
-            const { email, phone, password, tokenDevice, fullName } = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
+            const dataRes = req.body.data.input;
+            const { email, phone, password, tokenDevice, fullName } = JSON.parse(encrypt.decryptData(dataRes));
 
             const exist_email = await User.findOne({ email }).exec();
 
@@ -84,7 +75,7 @@ class Auth {
             return res.status(200).json(formatResponseSuccess(data, true, 'Đăng kí thành công'));
         } catch (error) {
             console.log('register', error);
-            return res.status(400).json(formatResponseError({ code: '404' }, false, 'Error'));
+            return res.status(400).json(formatResponseError({ code: '404' }, false, 'Lỗi đăng kí'));
         }
     }
 
@@ -101,7 +92,6 @@ class Auth {
                     return res.status(404).json(formatResponseError({ code: '404' }, false, 'Người dùng không tồn tại'));
                 }
 
-                // Xử lý trường 'image'
                 if (req.files && req.files['image']) {
                     const oldImagePath = `./uploads/${user.image}`;
                     if (user.image) {
@@ -114,7 +104,6 @@ class Auth {
                     user.image = req.files['image'][0].filename;
                 }
 
-                // Xử lý trường 'imageBanner'
                 if (req.files && req.files['imageBanner']) {
                     const oldImageBannerPath = `./uploads/${user.imageBanner}`;
                     if (user.imageBanner) {
@@ -127,7 +116,6 @@ class Auth {
                     user.imageBanner = req.files['imageBanner'][0].filename;
                 }
 
-                // Cập nhật trường 'fullName' nếu được cung cấp
                 if (req.body.fullName) {
                     user.fullName = req.body.fullName;
                 }
@@ -148,7 +136,9 @@ class Auth {
     }
 
     async gennerateOTP(req, res) {
-        const { email } = req.body.data;
+        const dataRes = req.body.data;
+        console.log(dataRes)
+        const { email } = dataRes;
         try {
             let user = await User.findOne({ email: email });
             if (!user) {
@@ -194,7 +184,10 @@ class Auth {
     }
 
     async verifyOTP(req, res) {
-        const { email, OTP } = req.body.data;
+        const dataRes = req.body.data;
+        console.log(dataRes)
+
+        const { email, OTP } = dataRes;
         console.log('verifyOTP', req.body.data);
         try {
             const user = await User.findOne({ email: email });
@@ -205,7 +198,6 @@ class Auth {
                 );
             }
 
-            // Check if user account is blocked
             if (user.isBlocked) {
                 const currentTime = new Date();
                 if (currentTime < user.blockUntil) {
@@ -281,12 +273,10 @@ class Auth {
 
     async login(req, res) {
         try {
-            const { key, iv, body } = req.body.data;
-
-            console.log(req.body)
-            const sessionKey = Buffer.from(rsa.decrypt(key), 'base64');
-            const sessionIV = Buffer.from(rsa.decrypt(iv), 'base64');
-            const { username, password } = JSON.parse(aes.decrypt(body, sessionKey, sessionIV));
+            const dataRes = req.body.data.input;
+            console.log(dataRes)
+            const { username, password } = JSON.parse(encrypt.decryptData(dataRes));
+            console.log(username)
 
             const filter = {};
             if (rules.email.test(username)) {
@@ -335,6 +325,8 @@ class Auth {
                     verified: user.verified,
                     imageBanner: user.imageBanner
                 };
+
+                console.log(data)
 
                 return res.status(200).json(formatResponseSuccess(data, true, 'Đăng nhập thành công'));
             } else {
@@ -426,6 +418,15 @@ class Auth {
             return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
         }
     }
+
+    async getAllArtist(req, res) {
+        try {
+            const users = await User.find({}, { _id: 1, image: 1, image: 1 });
+        } catch (error) {
+            console.log(error)
+            return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
+        }
+    }
 }
 
 
@@ -439,41 +440,5 @@ function isGmail(input) {
     const gmailRegex = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
     return gmailRegex.test(input);
 }
-
-function hashString(input, algorithm) {
-    const bytes = Buffer.from(input, 'utf-8');
-    const hash = crypto.createHash(algorithm).update(bytes).digest('hex');
-    return hash;
-}
-
-const algorithm = 'aes-256-cbc';
-const key = 'REtgV24bDB7xQYoMuypiBASMEaJbc59n';
-const iv = '8d2bc3f0f69426fc';
-
-const encrypt = (data) => {
-    const cipher = createCipheriv(algorithm, key, iv);
-    let crypted = cipher.update(data, 'utf8', 'hex');
-    crypted += cipher.final('hex');
-    return crypted;
-};
-
-const decrypt = (data) => {
-    const decipher = createDecipheriv(algorithm, key, iv);
-    let decrypted = decipher.update(data, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-};
-
-const decrypt2 = (data) => {
-    var decipher = crypto.createDecipher('aes-128-ecb', key);
-
-    var chunks = []
-    chunks.push(decipher.update(new Buffer(data, "base64").toString("binary")));
-    chunks.push(decipher.final('binary'));
-    var txt = chunks.join("");
-    txt = new Buffer(txt, "binary").toString("utf-8");
-};
-
-
 
 export default new Auth();
