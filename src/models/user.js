@@ -34,5 +34,6 @@ const userSchema = new mongoose.Schema({
   OTPAttempts: { type: Number, default: 0 },
   isBlocked: { type: Boolean, default: false },
   blockUntil: { type: Date },
+  loginAttempts: { type: Number, default: 0 }
 })
 module.exports = mongoose.model("User", userSchema);

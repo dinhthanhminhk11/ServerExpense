@@ -2,7 +2,7 @@
 import User from '../models/user';
 import { formatResponseError, formatResponseSuccess, formatResponseSuccessNoData } from '../config';
 const config = require('../config/auth.config');
-const bcyrpt = require('bcrypt');
+const bcrypt = require('bcrypt');
 import { rules } from '../constants/rules';
 import album from '../models/album';
 import song from '../models/song';
@@ -78,49 +78,58 @@ class Auth {
         try {
             console.log("=========================================");
             console.log("Call register");
-
+    
             const { data } = req.body;
             if (!data) {
                 return res.status(400).json(formatResponseError("DATA_MISSING", "Missing request data"));
             }
-
+    
             let decryptedData;
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
                 return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format"));
             }
-
+    
             const { email } = decryptedData;
-
+    
+            if (!email || typeof email !== "string") {
+                return res.status(400).json(formatResponseError("EMAIL_MISSING", "Email is required"));
+            }
+    
             if (!isGmail(email)) {
                 return res.status(400).json(formatResponseError("EMAIL_NOT_FORMAT", "Not a valid Gmail address"));
             }
-
-            const exist_email = await User.findOne({ email }).lean();
-
+    
+            const exist_email = await User.findOne({ email });
             if (exist_email) {
                 return res.status(409).json(formatResponseError("EMAIL_ALREADY_EXISTS", "Email already exists"));
             }
-
+    
             const OTP = generateOTP();
-            const user = new User({ email, OTP });
+            const hashedOTP = bcrypt.hashSync(OTP, 10);
+            const user = new User({ email, OTP: hashedOTP });
+    
             await user.save();
-
-            sendOTP(email, OTP);
             console.log("OTP sent:", OTP);
-
+            try {
+                await sendOTP(email, OTP);
+            } catch (err) {
+                return res.status(500).json(formatResponseError("OTP_SEND_FAIL", "Failed to send OTP"));
+            }
+    
             return res.status(200).json(formatResponseSuccess(
                 "USER_REGISTER_SUCCESS",
                 "User registered successfully.",
                 { verified: user.verified }
             ));
-
+    
         } catch (error) {
             console.error("Register Error:", error);
             return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
         }
     }
+    
 
     async gennerateOTP(req, res) {
         try {
@@ -152,28 +161,25 @@ class Auth {
                 return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist"));
             }
 
-            if (user.isBlocked) {
-                const currentTime = new Date();
-                if (currentTime < user.blockUntil) {
-                    return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try it after a while."));
-                } else {
-                    user.isBlocked = false;
-                    user.OTPAttempts = 0;
-                }
+            if (user.isBlocked && currentTime < user.blockUntil) {
+                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try it after a while."));
             }
 
-            const lastOTPTime = user.OTPCreatedTime;
-            const currentTime = new Date();
-
-            if (lastOTPTime && currentTime - lastOTPTime < 60000) {
+            if (user.OTPCreatedTime && (currentTime.getTime() - user.OTPCreatedTime.getTime() < 60000)) {
                 return res.status(409).json(formatResponseError("OTP_LIMIT", "Requires a minimum of 1 minute interval between OTP requests"));
             }
 
             const OTP = generateOTP();
-            user.OTP = OTP;
-            user.OTPCreatedTime = currentTime;
-
-            await user.save();
+            await User.updateOne(
+                { email },
+                {
+                    $set: {
+                        OTP,
+                        OTPCreatedTime: currentTime,
+                        ...(user.isBlocked ? { isBlocked: false, OTPAttempts: 0 } : {})
+                    }
+                }
+            );
 
             sendOTP(email, OTP);
             console.log(OTP)
@@ -192,97 +198,89 @@ class Auth {
         try {
             console.log("=========================================");
             console.log("Call verifyOTP");
-
+    
             const { data } = req.body;
             if (!data) {
                 return res.status(400).json(formatResponseError("DATA_MISSING", "Missing request data"));
             }
-
+    
             let decryptedData;
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
                 return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format"));
             }
-
+    
             const { email, otp, type } = decryptedData;
-
+    
             console.log('verifyOTP', req.body.data);
-
+    
             if (!isGmail(email)) {
                 return res.status(400).json(formatResponseError("EMAIL_NOT_FORMAT", "Not a valid Gmail address"));
             }
-
-            const user = await User.findOne({ email }).lean();
-
+    
+            const currentTime = new Date();
+            const user = await User.findOneAndUpdate(
+                { email },
+                {
+                    $set: { 
+                        ...(currentTime >= user?.blockUntil ? { isBlocked: false, OTPAttempts: 0 } : {}) 
+                    }
+                },
+                { new: true }
+            );
+    
             if (!user) {
                 return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist"));
             }
-
-            if (user.isBlocked) {
-                const currentTime = new Date();
-                if (currentTime < user.blockUntil) {
-                    return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try it after a while."));
-                } else {
-                    user.isBlocked = false;
-                    user.OTPAttempts = 0;
-                }
+    
+            if (user.isBlocked && currentTime < user.blockUntil) {
+                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try again later."));
             }
 
-            if (user.OTP !== otp) {
-                user.OTPAttempts++;
-                if (user.OTPAttempts >= 5) {
-                    user.isBlocked = true;
-                    let blockUntil = new Date();
-                    blockUntil.setHours(blockUntil.getHours() + 1);
-                    user.blockUntil = blockUntil;
-                }
+            const checkOTP = bcrypt.compareSync(otp, user.OTP);
 
-                await user.save();
+    
+            if (!checkOTP) {
+                const updateData = { $inc: { OTPAttempts: 1 } };
+    
+                if (user.OTPAttempts + 1 >= 5) {
+                    updateData.$set = {
+                        isBlocked: true,
+                        blockUntil: new Date(currentTime.getTime() + 60 * 60 * 1000)
+                    };
+                }
+    
+                await User.updateOne({ email }, updateData);
                 return res.status(409).json(formatResponseError("OTP_NOT_VALID", "OTP is not valid."));
             }
-
-            const OTPCreatedTime = user.OTPCreatedTime;
-            const currentTime = new Date();
-
-            if (currentTime - OTPCreatedTime > 5 * 60 * 1000) {
+    
+            if (user.OTPCreatedTime && (currentTime - user.OTPCreatedTime > 5 * 60 * 1000)) {
                 return res.status(409).json(formatResponseError("OTP_EXPIRED", "OTP expired"));
             }
-
-            user.OTP = undefined;
-            user.OTPCreatedTime = undefined;
-            user.OTPAttempts = 0;
-
-            user.verified = true
-
-            await user.save();
-
-            if (type == TYPE_OTP_LOGIN) {
-                const accessToken = jwt.sign({ id: user.id }, config.secret, {
-                    // expiresIn: 86400 // 24 hours
-                });
-
-                console.log(accessToken);
-
-                const text = formatUserData(user, accessToken)
-
-                const dataResponse = {
-                    "data": encrypt.encryptData(text)
-                }
-                console.log("User logged in successfully");
+    
+            const updatedUser = await User.findOneAndUpdate(
+                { email },
+                { 
+                    $unset: { OTP: "", OTPCreatedTime: "" },
+                    $set: { verified: true, OTPAttempts: 0 }
+                },
+                { new: true }
+            );
+    
+            if (type === TYPE_OTP_LOGIN) {
+                const accessToken = jwt.sign({ id: updatedUser.id }, config.secret);
+                const text = formatUserData(updatedUser, accessToken);
                 return res.status(200).json(formatResponseSuccess(
                     "LOGIN_SUCCESS",
                     "Login successful.",
-                    dataResponse
+                    { "data": encrypt.encryptData(text) }
                 ));
             } else {
-                console.log("Confirmed successfully");
                 return res.status(200).json(formatResponseSuccess(
                     "OTP_CONFIRMED",
                     "Confirmed successfully",
-                    {
-                        "type": type
-                    }
+                    { "type": type }
                 ));
             }
         } catch (err) {
@@ -290,180 +288,226 @@ class Auth {
             res.status(500).send("Server error");
         }
     }
-
-
-
+    
     async loginWithOtp(req, res) {
         try {
             console.log("=========================================");
             console.log("Call loginWithOtp");
-
+    
             const { data } = req.body;
             if (!data) {
                 return res.status(400).json(formatResponseError("DATA_MISSING", "Missing request data"));
             }
-
+    
             let decryptedData;
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
                 return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format"));
             }
-
+    
             const { email } = decryptedData;
-
+    
             if (!isGmail(email)) {
                 return res.status(400).json(formatResponseError("EMAIL_NOT_FORMAT", "Not a valid Gmail address"));
             }
-
-            const user = await User.findOne({ email }).lean();
-
+    
+            const currentTime = new Date();
+    
+            // Lấy user và cập nhật nếu cần thiết
+            const user = await User.findOneAndUpdate(
+                { email },
+                {
+                    $set: {
+                        ...(currentTime >= user?.blockUntil ? { isBlocked: false, OTPAttempts: 0 } : {}) 
+                    }
+                },
+                { new: true }
+            );
+    
             if (!user) {
                 return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist"));
             }
-
-            if (user.isBlocked) {
-                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try it after a while."));
+    
+            if (user.isBlocked && currentTime < user.blockUntil) {
+                console.log(`Account is locked until ${user.blockUntil}`);
+                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try again later."));
             }
-
+    
+            if (user.OTPCreatedTime && (currentTime - user.OTPCreatedTime < 60000)) {
+                return res.status(409).json(formatResponseError("OTP_LIMIT", "Requires a minimum of 1 minute interval between OTP requests"));
+            }
+    
             const OTP = generateOTP();
-            user.OTP = OTP;
-            user.OTPAttempts++;
-            if (user.OTPAttempts >= 5) {
-                user.isBlocked = true;
-                let blockUntil = new Date();
-                blockUntil.setHours(blockUntil.getHours() + 1);
-                user.blockUntil = blockUntil;
+            console.log(`Generated OTP for ${email}: ${OTP}`);
+    
+            const updateData = {
+                $set: {
+                    OTP,
+                    OTPCreatedTime: currentTime
+                },
+                $inc: { OTPAttempts: 1 }
+            };
+    
+            if (user.OTPAttempts + 1 >= 5) {
+                updateData.$set.isBlocked = true;
+                updateData.$set.blockUntil = new Date(currentTime.getTime() + 60 * 60 * 1000); 
             }
-            await user.save();
-            sendOTP(username, OTP);
-            console.log(OTP)
-            if (user.verified) {
-                console.log("Authenticated accounts can log in")
-                return res.status(200).json(formatResponseSuccess(
-                    "ACCOUNT_CAN_LOGIN",
-                    "Authenticated accounts can log in"
-                ));
-            } else {
-                console.log("Unverified accounts require authentication")
-                return res.status(200).json(formatResponseSuccess(
-                    "ACCOUNT_CAN_NOT_LOGIN",
-                    "Unverified accounts require authentication"
-                ));
-            }
-
+    
+            await User.updateOne({ email }, updateData);
+    
+            sendOTP(email, OTP);
+    
+            console.log(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
+    
+            return res.status(200).json(formatResponseSuccess(
+                user.verified ? "ACCOUNT_CAN_LOGIN" : "ACCOUNT_CAN_NOT_LOGIN",
+                user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication"
+            ));
+    
         } catch (error) {
-            console.error("Register Error:", error);
+            console.error("LoginWithOtp Error:", error);
             return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
         }
     }
+    
 
     async loginWithPass(req, res) {
         try {
             console.log("=========================================");
             console.log("Call loginWithPass");
-
+    
             const { data } = req.body;
             if (!data) {
                 return res.status(400).json(formatResponseError("DATA_MISSING", "Missing request data"));
             }
-
+    
             let decryptedData;
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
                 return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format"));
             }
-
+    
             const { email, password } = decryptedData;
-
+    
             if (!isGmail(email)) {
                 return res.status(400).json(formatResponseError("EMAIL_NOT_FORMAT", "Not a valid Gmail address"));
             }
-
-            const user = await User.findOne({ email }).lean();
-
+    
+            const currentTime = new Date();
+    
+            const user = await User.findOneAndUpdate(
+                { email },
+                {
+                    $set: {
+                        ...(currentTime >= user?.blockUntil ? { isBlocked: false, loginAttempts: 0 } : {})
+                    }
+                },
+                { new: true }
+            );
+    
             if (!user) {
                 return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist"));
             }
-
-            if (user.isBlocked) {
-                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try it after a while."));
+    
+            if (user.isBlocked && currentTime < user.blockUntil) {
+                console.log(`Account is locked until ${user.blockUntil}`);
+                return res.status(409).json(formatResponseError("ACCOUNT_LOCKED", "Account locked. Try again later."));
             }
-
-            const checkPass = bcyrpt.compareSync(password, user.password);
-
-            if (checkPass) {
-                const accessToken = jwt.sign({ id: user.id }, config.secret, {
-                    // expiresIn: 86400 // 24 hours
-                });
-
-                console.log(accessToken);
-
-                const text = formatUserData(user, accessToken)
-
-                const dataResponse = {
-                    "data": encrypt.encryptData(text)
+    
+            if (!user.password) {
+                return res.status(409).json(formatResponseError("PASSWORD_NOT_SET", "Password is not set for this account"));
+            }
+    
+            const checkPass = bcrypt.compareSync(password, user.password);
+    
+            if (!checkPass) {
+                const updateData = { $inc: { loginAttempts: 1 } };
+    
+                if (user.loginAttempts + 1 >= 5) {
+                    updateData.$set = {
+                        isBlocked: true,
+                        blockUntil: new Date(currentTime.getTime() + 60 * 60 * 1000) 
+                    };
+                    console.log(`Account ${email} is locked due to multiple failed login attempts.`);
                 }
-                console.log("User logged in successfully");
-                return res.status(200).json(formatResponseSuccess(
-                    "LOGIN_SUCCESS",
-                    "Login successful.",
-                    dataResponse
-                ));
-            } else {
+    
+                await User.updateOne({ email }, updateData);
                 return res.status(409).json(formatResponseError("LOGIN_ERROR", "Account or password is incorrect"));
             }
-
+    
+            await User.updateOne({ email }, { $set: { loginAttempts: 0 } });
+    
+            const accessToken = jwt.sign({ id: user.id }, config.secret);
+    
+            console.log(`User ${email} logged in successfully`);
+    
+            const text = formatUserData(user, accessToken);
+            const dataResponse = { "data": encrypt.encryptData(text) };
+    
+            return res.status(200).json(formatResponseSuccess(
+                "LOGIN_SUCCESS",
+                "Login successful.",
+                dataResponse
+            ));
+    
         } catch (error) {
             console.error("loginWithPass Error:", error);
             return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
         }
     }
+    
 
     async setPassWord(req, res) {
         try {
             console.log("=========================================");
             console.log("Call setPassWord");
-
+    
             const { data } = req.body;
             if (!data) {
                 return res.status(400).json(formatResponseError("DATA_MISSING", "Missing request data"));
             }
-
+    
             let decryptedData;
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
                 return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format"));
             }
-
+    
             const { email, password } = decryptedData;
-
+    
             if (!isGmail(email)) {
                 return res.status(400).json(formatResponseError("EMAIL_NOT_FORMAT", "Not a valid Gmail address"));
             }
-
-            const user = await User.findOne({ email }).lean();
-
+    
+            const user = await User.findOne({ email }); 
+    
             if (!user) {
-                return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist"));
+                return res.status(409).json(formatResponseError("EMAIL_DOES_NOT_EXIST", "Email does not exist"));
             }
 
-            user.verified = true
-            user.password = bcyrpt.hashSync(password, 10)
-            await user.save();
-            console.log("User logged in successfully");
+            if (!user.verified) {
+                return res.status(403).json(formatResponseError("OTP_NOT_VERIFIED", "Please verify OTP before setting password"));
+            }
+    
+            user.verified = true;
+            user.password = bcrypt.hashSync(password, 10);
+            await user.save(); 
+    
+            console.log("Password set successfully");
             return res.status(200).json(formatResponseSuccess(
                 "SETPASS_SUCCESS",
-                "Set passs successful."
+                "Set password successful."
             ));
-
+    
         } catch (error) {
             console.error("setPassWord Error:", error);
             return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
         }
     }
+    
 
     async verifyToken(req, res, next) {
         let token = req.headers["x-access-token"];
@@ -607,6 +651,10 @@ class Auth {
         }
     }
 }
+
+const setUserData = async (email, data) => {
+    await User.updateOne({ email }, { $set: data });
+};
 
 function isGmail(input) {
     const gmailRegex = /^([a-z0-9_\.-]+)@([\da-z\.-]+)\.([a-z\.]{2,6})$/;
