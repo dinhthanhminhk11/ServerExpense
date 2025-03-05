@@ -1,22 +1,23 @@
-export const formatResponseError = (errors ,status, message, type) => ({
-  errors,
-  message: {
-    status,
+export const formatResponseError = (code, message, details = null) => ({
+  success: false,
+  error: {
+    code,
     message,
-    type
+    ...(details && { details })
   }
 });
 
-export const formatResponseSuccess = (data, status, message) => ({
-  data,
-  message: {
-    status,
-    message
+export const formatResponseSuccess = (code, message, details = null) => ({
+  success: true,
+  data: {
+    code,
+    message,
+    ...(details && { details })
   }
 });
 
 
-export const formatResponseSuccessNoData = ( status, message) => ({
-    status,
-    message
+export const formatResponseSuccessNoData = (status, message) => ({
+  status,
+  message
 });
