@@ -27,7 +27,7 @@ app.use(express.raw({ type: 'application/x-protobuf' }));
 app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());
-
+app.set('trust proxy', 1);
 
 app.use('/uploads', express.static('uploads'));
 app.use('/audio', express.static(path.resolve(__dirname, '..', 'audio')));
