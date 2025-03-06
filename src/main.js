@@ -23,7 +23,7 @@ const limiter = rateLimit({
   message: "Too many requests, try again later."
 });
 app.use(limiter);
-
+app.use(express.raw({ type: 'application/x-protobuf' }));
 app.use(morgan('tiny'));
 app.use(express.json());
 app.use(cors());

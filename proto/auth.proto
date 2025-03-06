@@ -1,0 +1,33 @@
+syntax = "proto2";
+
+message AuthRequest {
+  required string data = 1;
+}
+
+message ErrorResponse {
+  required bool success = 1;
+  required ErrorDetails error = 2;
+}
+
+message SuccessResponse {
+  required bool success = 1;
+  required SuccessDetails data = 2;
+}
+
+message ErrorDetails {
+  required string code = 1;
+  required string message = 2 ;
+}
+
+message SuccessDetails {
+  required string code = 1;
+  required string message = 2;
+  optional DataResponse details = 3;
+}
+
+message DataResponse {
+  optional string data = 1;
+  optional string type = 2;
+  optional bool verified = 3;
+}
+
