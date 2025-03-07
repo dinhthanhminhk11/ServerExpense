@@ -635,11 +635,21 @@ class Auth {
 
             console.log(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
 
+            if (!user.verified) {
+                return res.status(403).send(ErrorResponse.encode({
+                    success: false,
+                    error: {
+                        code: "ACCOUNT_CAN_NOT_LOGIN",
+                        message: "Unverified accounts require authentication"
+                    }
+                }).finish());
+            }
+
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: user.verified ? "ACCOUNT_CAN_LOGIN" : "ACCOUNT_CAN_NOT_LOGIN",
-                    message: user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication"
+                    code: "ACCOUNT_CAN_LOGIN",
+                    message: "Authenticated accounts can log in"
                 }
             }).finish()
             return res.status(200).send(response);
@@ -941,7 +951,7 @@ class Auth {
                 const data = {
                     verified: user.verified
                 };
-                return res.status(403).json(formatResponseError("OTP_NOT_VERIFIED", "Please verify OTP before setting password" , data));
+                return res.status(403).json(formatResponseError("OTP_NOT_VERIFIED", "Please verify OTP before setting password", data));
             }
         } catch (error) {
             return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
