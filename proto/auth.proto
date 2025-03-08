@@ -30,4 +30,3 @@ message DataResponse {
   optional string type = 2;
   optional bool verified = 3;
 }
-

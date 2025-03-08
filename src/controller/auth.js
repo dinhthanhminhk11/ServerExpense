@@ -5,7 +5,7 @@ import { rules } from '../constants/rules';
 import album from '../models/album';
 import song from '../models/song';
 import protobuf from "protobufjs";
-
+const RevokedToken = require("../models/revokedToken");
 const config = require('../config/auth.config');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -43,6 +43,7 @@ const root = protobuf.loadSync(path.join(__dirname, "../../proto/auth.proto"));
 const AuthRequest = root.lookupType("AuthRequest");
 const ErrorResponse = root.lookupType("ErrorResponse");
 const SuccessResponse = root.lookupType("SuccessResponse");
+
 
 class Auth {
     async testLogin(req, res) {
@@ -844,6 +845,61 @@ class Auth {
         }
     }
 
+    async logout(req, res) {
+        try {
+            console.log("=========================================");
+            console.log("Call logout");
+
+            let request;
+            try {
+                const buffer = req.body;
+                request = AuthRequest.decode(new Uint8Array(buffer));
+            } catch (err) {
+                console.log("INVALID_PROTOBUF " + err);
+                return res.status(400).send(ErrorResponse.encode({
+                    success: false,
+                    error: { code: "INVALID_PROTOBUF", message: "Invalid Protobuf format" }
+                }).finish());
+            }
+
+            const { token } = request;
+
+            if (!token) {
+                return res.status(400).send(ErrorResponse.encode({
+                    success: false,
+                    error: { code: "TOKEN_MISSING", message: "Token is required" }
+                }).finish());
+            }
+
+            try {
+                const decoded = jwt.verify(token, config.secret);
+                const hashedToken = encrypt.hashData(token);
+
+                await RevokedToken.create({ token: hashedToken, expiresAt: new Date(decoded.exp * 1000) });
+
+                console.log(`User ${decoded.id} logged out`);
+
+                return res.status(200).send(SuccessResponse.encode({
+                    success: true,
+                    data: { code: "LOGOUT_SUCCESS", message: "Logout successful." }
+                }).finish());
+
+            } catch (err) {
+                return res.status(401).send(ErrorResponse.encode({
+                    success: false,
+                    error: { code: "INVALID_TOKEN", message: "Invalid or expired token" }
+                }).finish());
+            }
+        } catch (error) {
+            console.error("Logout Error:", error);
+            return res.status(500).send(ErrorResponse.encode({
+                success: false,
+                error: { code: "SERVER_ERROR", message: "Internal Server Error" }
+            }).finish());
+        }
+    }
+
+
     async setPassWord(req, res) {
         try {
             console.log("=========================================");
@@ -956,6 +1012,11 @@ class Auth {
             return res.status(403).send({ message: "No token provided!" });
         }
 
+        const revokedToken = await RevokedToken.findOne({ token: encrypt.encryptData(token) });
+        if (revokedToken) {
+            return res.status(401).send({ message: "Unauthorized! Token has been revoked." });
+        }
+
         jwt.verify(token, config.secret, (err, decoded) => {
             if (err) {
                 return res.status(401).send({ message: "Unauthorized!" });
@@ -973,7 +1034,7 @@ class Auth {
             }
             if (user.verified) {
                 const text = formatUserData(user);
-
+                console.log("string object "+text)
                 return res.status(200).json(formatResponseSuccess(
                     "LOGIN_SUCCESS",
                     "Login successful.",

@@ -10,11 +10,11 @@ router.post('/auth/setPassword', platformCheck(['android']), User.setPassWord);
 router.post('/auth/login', platformCheck(['android']), User.loginWithPass);
 router.post('/auth/checkAccount', platformCheck(['android']), User.loginWithOtp);
 router.post('/auth/resentOtp', platformCheck(['android']), User.gennerateOTP);
+router.post('/auth/logout', platformCheck(['android']), User.logout);
 // router.get('/auth/testLogin', platformCheck(['web']),  User.testLogin);
 router.get('/auth/testLogin', User.testLogin);
 router.patch('/auth/updateUser', User.updateUser);
 
-// Viết middleware đúng cú pháp
 router.get('/auth/getUserByToken', User.verifyToken, User.isModerator, User.moderatorBoard);
 
 export default router;
