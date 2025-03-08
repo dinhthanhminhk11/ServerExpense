@@ -27,6 +27,7 @@ const storage = multer.diskStorage({
 });
 
 const TYPE_OTP_LOGIN = "LOGIN"
+const ON_OFF_SETTING_SENT_MAIL_OTP = false
 
 const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -167,17 +168,20 @@ class Auth {
 
             await user.save();
             console.log("OTP sent:", OTP);
-            // try {
-            //     await sendOTP(email, OTP);
-            // } catch (err) {
-            //     return res.status(500).send(ErrorResponse.encode({
-            //         success: false,
-            //         error: {
-            //             code: "OTP_SEND_FAIL",
-            //             message: "Failed to send OTP"
-            //         }
-            //     }).finish());
-            // }
+
+            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+                try {
+                    await sendOTP(email, OTP);
+                } catch (err) {
+                    return res.status(500).send(ErrorResponse.encode({
+                        success: false,
+                        error: {
+                            code: "OTP_SEND_FAIL",
+                            message: "Failed to send OTP"
+                        }
+                    }).finish());
+                }
+            }
 
             const response = SuccessResponse.encode({
                 success: true,
@@ -317,17 +321,20 @@ class Auth {
                 }
             );
 
-            // try {
-            //     await sendOTP(email, OTP);
-            // } catch (err) {
-            //     return res.status(500).send(ErrorResponse.encode({
-            //         success: false,
-            //         error: {
-            //             code: "OTP_SEND_FAIL",
-            //             message: "Failed to send OTP"
-            //         }
-            //     }).finish());
-            // }
+            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+                try {
+                    await sendOTP(email, OTP);
+                } catch (err) {
+                    return res.status(500).send(ErrorResponse.encode({
+                        success: false,
+                        error: {
+                            code: "OTP_SEND_FAIL",
+                            message: "Failed to send OTP"
+                        }
+                    }).finish());
+                }
+            }
+
             console.log(OTP)
             console.log("OTP sent successfully");
 
@@ -644,17 +651,19 @@ class Auth {
 
             await User.updateOne({ email }, updateData);
 
-            // try {
-            //     await sendOTP(email, OTP);
-            // } catch (err) {
-            //     return res.status(500).send(ErrorResponse.encode({
-            //         success: false,
-            //         error: {
-            //             code: "OTP_SEND_FAIL",
-            //             message: "Failed to send OTP"
-            //         }
-            //     }).finish());
-            // }
+            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+                try {
+                    await sendOTP(email, OTP);
+                } catch (err) {
+                    return res.status(500).send(ErrorResponse.encode({
+                        success: false,
+                        error: {
+                            code: "OTP_SEND_FAIL",
+                            message: "Failed to send OTP"
+                        }
+                    }).finish());
+                }
+            }
 
             console.log(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
 
