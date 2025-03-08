@@ -167,17 +167,17 @@ class Auth {
 
             await user.save();
             console.log("OTP sent:", OTP);
-            try {
-                await sendOTP(email, OTP);
-            } catch (err) {
-                return res.status(500).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: "OTP_SEND_FAIL",
-                        message: "Failed to send OTP"
-                    }
-                }).finish());
-            }
+            // try {
+            //     await sendOTP(email, OTP);
+            // } catch (err) {
+            //     return res.status(500).send(ErrorResponse.encode({
+            //         success: false,
+            //         error: {
+            //             code: "OTP_SEND_FAIL",
+            //             message: "Failed to send OTP"
+            //         }
+            //     }).finish());
+            // }
 
             const response = SuccessResponse.encode({
                 success: true,
@@ -273,7 +273,7 @@ class Auth {
             }
 
             const user = await User.findOne({ email }).lean();
-
+            const currentTime = new Date();
             if (!user) {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
@@ -305,18 +305,29 @@ class Auth {
             }
 
             const OTP = generateOTP();
+            const hashedOTP = bcrypt.hashSync(OTP, 10);
             await User.updateOne(
                 { email },
                 {
                     $set: {
-                        OTP,
+                        OTP: hashedOTP,
                         OTPCreatedTime: currentTime,
                         ...(user.isBlocked ? { isBlocked: false, OTPAttempts: 0 } : {})
                     }
                 }
             );
 
-            sendOTP(email, OTP);
+            // try {
+            //     await sendOTP(email, OTP);
+            // } catch (err) {
+            //     return res.status(500).send(ErrorResponse.encode({
+            //         success: false,
+            //         error: {
+            //             code: "OTP_SEND_FAIL",
+            //             message: "Failed to send OTP"
+            //         }
+            //     }).finish());
+            // }
             console.log(OTP)
             console.log("OTP sent successfully");
 
@@ -614,11 +625,13 @@ class Auth {
             }
 
             const OTP = generateOTP();
+            const hashedOTP = bcrypt.hashSync(OTP, 10);
+
             console.log(`Generated OTP for ${email}: ${OTP}`);
 
             const updateData = {
                 $set: {
-                    OTP,
+                    OTP: hashedOTP,
                     OTPCreatedTime: currentTime
                 },
                 $inc: { OTPAttempts: 1 }
@@ -631,7 +644,17 @@ class Auth {
 
             await User.updateOne({ email }, updateData);
 
-            sendOTP(email, OTP);
+            // try {
+            //     await sendOTP(email, OTP);
+            // } catch (err) {
+            //     return res.status(500).send(ErrorResponse.encode({
+            //         success: false,
+            //         error: {
+            //             code: "OTP_SEND_FAIL",
+            //             message: "Failed to send OTP"
+            //         }
+            //     }).finish());
+            // }
 
             console.log(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
 
