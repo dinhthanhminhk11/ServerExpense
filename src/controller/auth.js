@@ -6,6 +6,7 @@ import album from '../models/album';
 import song from '../models/song';
 import protobuf from "protobufjs";
 const RevokedToken = require("../models/revokedToken");
+const Logger = require("../util/logger");
 const config = require('../config/auth.config');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -27,7 +28,14 @@ const storage = multer.diskStorage({
 });
 
 const TYPE_OTP_LOGIN = "LOGIN"
+const X_ACCESS_TOKEN = "x-access-token"
+
 const ON_OFF_SETTING_SENT_MAIL_OTP = false
+const ON_OFF_SETTING_LOG_ENABLE = false
+const ON_OFF_SETTING_LOG_OTP = true
+
+const logger = new Logger(ON_OFF_SETTING_LOG_ENABLE);
+const loggerSentOTP = new Logger(ON_OFF_SETTING_LOG_OTP);
 
 const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -48,7 +56,7 @@ const SuccessResponse = root.lookupType("SuccessResponse");
 class Auth {
     async testLogin(req, res) {
         try {
-            console.log("tool encrypt data")
+            logger.error("tool encrypt data")
             // const text = "{\"email\" : \"quanvd31102002@gmail.com\" , \"password\" : \"quan3110\"}"
             const text = "{\"email\" : \"dinhthanhminhk11@gmail.com\"}"
             let textEncrpyt = encrypt.encryptData(text)
@@ -63,10 +71,12 @@ class Auth {
                 const user = await User.findOne({ email }).lean();
                 const accessToken = "xyz123token"
 
-                const text = formatUserData(user)
+                const text = formatUserData({}, accessToken)
 
-                console.log(encrypt.encryptData(text));
-
+                logger.error(text);
+                return res.status(200).json({
+                    "textEncrpyt": textEncrpyt
+                })
 
 
 
@@ -80,23 +90,22 @@ class Auth {
             })
 
         } catch (error) {
-            console.log('register', error);
+            logger.error('register', error);
             return res.status(400).json(formatResponseError({ code: '404' }, false, 'Lỗi đăng kí'));
         }
     }
 
     async register(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call register");
+            logger.info("=========================================");
+            logger.info("Call register");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
-
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -108,6 +117,7 @@ class Auth {
 
             const { data } = request;
             if (!data) {
+                logger.error("DATA_MISSING ")
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -121,6 +131,8 @@ class Auth {
             try {
                 decryptedData = JSON.parse(encrypt.decryptData(data));
             } catch (err) {
+                logger.error("DATA_NOT_DECRYPT " + err)
+
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -133,6 +145,7 @@ class Auth {
             const { email } = decryptedData;
 
             if (!email || typeof email !== "string") {
+                logger.error("EMAIL_MISSING")
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -143,6 +156,7 @@ class Auth {
             }
 
             if (!isGmail(email)) {
+                logger.error("EMAIL_NOT_FORMAT")
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -154,6 +168,7 @@ class Auth {
 
             const exist_email = await User.findOne({ email });
             if (exist_email) {
+                logger.error("EMAIL_ALREADY_EXISTS")
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -168,12 +183,13 @@ class Auth {
             const user = new User({ email, OTP: hashedOTP });
 
             await user.save();
-            console.log("OTP sent:", OTP);
+            loggerSentOTP.info("OTP sent: "+ OTP);
 
             if (ON_OFF_SETTING_SENT_MAIL_OTP) {
                 try {
                     await sendOTP(email, OTP);
                 } catch (err) {
+                    logger.error("OTP_SEND_FAIL " + err)
                     return res.status(500).send(ErrorResponse.encode({
                         success: false,
                         error: {
@@ -194,14 +210,14 @@ class Auth {
                     }
                 }
             }).finish()
-            console.error("Register response:", response);
+            logger.warn("Register response:", response);
 
             const decodeData = SuccessResponse.decode(new Uint8Array(response));
-            console.error("Register decode:", decodeData);
+            logger.warn("Register decode:", decodeData);
             return res.status(200).send(response);
 
         } catch (error) {
-            console.error("Register Error:", error);
+            logger.error("Register Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
                 code: "SERVER_ERROR",
@@ -212,15 +228,15 @@ class Auth {
 
     async gennerateOTP(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call gennerateOTP");
+            logger.warn("=========================================");
+            logger.warn("Call gennerateOTP");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -336,8 +352,8 @@ class Auth {
                 }
             }
 
-            console.log(OTP)
-            console.log("OTP sent successfully");
+            loggerSentOTP.info("this is otp " + OTP)
+            logger.warn("OTP sent successfully");
 
             const response = SuccessResponse.encode({
                 success: true,
@@ -349,22 +365,22 @@ class Auth {
             return res.status(200).send(response);
 
         } catch (err) {
-            console.log(err);
+            logger.error(err);
             res.status(500).send("Server error");
         }
     }
 
     async verifyOTP(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call verifyOTP");
+            logger.warn("=========================================");
+            logger.warn("Call verifyOTP");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -488,7 +504,7 @@ class Auth {
 
             if (type === TYPE_OTP_LOGIN) {
                 const accessToken = jwt.sign({ id: updatedUser.id }, config.secret);
-                const text = formatUserData(updatedUser, accessToken);
+                const text = formatUserData({}, accessToken);
 
                 response = SuccessResponse.encode({
                     success: true,
@@ -512,7 +528,7 @@ class Auth {
             return res.status(200).send(response);
 
         } catch (err) {
-            console.log(err);
+            logger.error(err);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
                 code: "SERVER_ERROR",
@@ -523,15 +539,15 @@ class Auth {
 
     async loginWithOtp(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call loginWithOtp");
+            logger.warn("=========================================");
+            logger.warn("Call loginWithOtp");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -612,7 +628,7 @@ class Auth {
             }
 
             if (user.isBlocked && currentTime < user.blockUntil) {
-                console.log(`Account is locked until ${user.blockUntil}`);
+                logger.error(`Account is locked until ${user.blockUntil}`);
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -635,7 +651,7 @@ class Auth {
             const OTP = generateOTP();
             const hashedOTP = bcrypt.hashSync(OTP, 10);
 
-            console.log(`Generated OTP for ${email}: ${OTP}`);
+            loggerSentOTP.info(`Generated OTP for ${email}: ${OTP}`);
 
             const updateData = {
                 $set: {
@@ -666,7 +682,7 @@ class Auth {
                 }
             }
 
-            console.log(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
+            logger.success(user.verified ? "Authenticated accounts can log in" : "Unverified accounts require authentication");
 
             if (!user.verified) {
                 return res.status(403).send(ErrorResponse.encode({
@@ -698,15 +714,15 @@ class Auth {
 
     async loginWithPass(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call loginWithPass");
+            logger.warn("=========================================");
+            logger.warn("Call loginWithPass");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -776,7 +792,7 @@ class Auth {
             }
 
             if (user.isBlocked && currentTime < user.blockUntil) {
-                console.log(`Account is locked until ${user.blockUntil}`);
+                logger.error(`Account is locked until ${user.blockUntil}`);
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -806,7 +822,7 @@ class Auth {
                         isBlocked: true,
                         blockUntil: new Date(currentTime.getTime() + 60 * 60 * 1000)
                     };
-                    console.log(`Account ${email} is locked due to multiple failed login attempts.`);
+                    logger.error(`Account ${email} is locked due to multiple failed login attempts.`);
                 }
 
                 await User.updateOne({ email }, updateData);
@@ -823,9 +839,9 @@ class Auth {
 
             const accessToken = jwt.sign({ id: user.id }, config.secret);
 
-            console.log(`User ${email} logged in successfully`);
+            logger.success(`User ${email} logged in successfully`);
 
-            const text = formatUserData(user, accessToken);
+            const text = formatUserData({}, accessToken);
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
@@ -847,15 +863,15 @@ class Auth {
 
     async logout(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call logout");
+            logger.warn("=========================================");
+            logger.warn("Call logout");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err);
+                logger.error("INVALID_PROTOBUF " + err);
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: { code: "INVALID_PROTOBUF", message: "Invalid Protobuf format" }
@@ -877,7 +893,7 @@ class Auth {
 
                 await RevokedToken.create({ token: hashedToken, expiresAt: new Date(decoded.exp * 1000) });
 
-                console.log(`User ${decoded.id} logged out`);
+                logger.error(`User ${decoded.id} logged out`);
 
                 return res.status(200).send(SuccessResponse.encode({
                     success: true,
@@ -902,15 +918,15 @@ class Auth {
 
     async setPassWord(req, res) {
         try {
-            console.log("=========================================");
-            console.log("Call setPassWord");
+            logger.warn("=========================================");
+            logger.warn("Call setPassWord");
 
             let request;
             try {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                console.log("INVALID_PROTOBUF " + err)
+                logger.error("INVALID_PROTOBUF " + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
@@ -983,7 +999,7 @@ class Auth {
             user.password = bcrypt.hashSync(password, 10);
             await user.save();
 
-            console.log("Password set successfully");
+            logger.success("Password set successfully");
 
             const response = SuccessResponse.encode({
                 success: true,
@@ -1006,20 +1022,23 @@ class Auth {
     }
 
     async verifyToken(req, res, next) {
-        let token = req.headers["x-access-token"];
-        console.log(token);
-        if (!token) {
-            return res.status(403).send({ message: "No token provided!" });
+        logger.warn("=========================================");
+        logger.warn("Call verifyToken");
+
+        let token = req.headers[X_ACCESS_TOKEN];
+        const tokenDecrypt = encrypt.decryptData(token)
+        if (!tokenDecrypt) {
+            return res.status(403).json(formatResponseError("NOT_TOKEN", "No token provided!"));
         }
 
-        const revokedToken = await RevokedToken.findOne({ token: encrypt.encryptData(token) });
+        const revokedToken = await RevokedToken.findOne({ token: encrypt.encryptData(tokenDecrypt) });
         if (revokedToken) {
             return res.status(401).send({ message: "Unauthorized! Token has been revoked." });
         }
 
-        jwt.verify(token, config.secret, (err, decoded) => {
+        jwt.verify(tokenDecrypt, config.secret, (err, decoded) => {
             if (err) {
-                return res.status(401).send({ message: "Unauthorized!" });
+                return res.status(401).json(formatResponseError("UNAUTHORIZED", "Unauthorized!"));
             }
             req.userId = decoded.id;
             next();
@@ -1028,31 +1047,57 @@ class Auth {
 
     async isModerator(req, res) {
         try {
+            logger.warn(req.userId)
             const user = await User.findById(req.userId);
             if (!user) {
-                return res.status(409).json(formatResponseError("EMAIL_DOES_NOT_EXIST", "Email does not exist"));
+                return res.status(409).send(ErrorResponse.encode({
+                    success: false,
+                    error: {
+                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        message: "Email does not exist"
+                    }
+                }).finish());
             }
             if (user.verified) {
                 const text = formatUserData(user);
-                console.log("string object "+text)
-                return res.status(200).json(formatResponseSuccess(
-                    "LOGIN_SUCCESS",
-                    "Login successful.",
-                    { "data": encrypt.encryptData(text) }
-                ));
+                const response = SuccessResponse.encode({
+                    success: true,
+                    data: {
+                        code: "LOGIN_SUCCESS",
+                        message: "Login successful.",
+                        details: { data: encrypt.encryptData(text) }
+                    }
+                }).finish()
+                return res.status(200).send(response);
             } else {
-                const data = {
-                    verified: user.verified
-                };
-                return res.status(403).json(formatResponseError("OTP_NOT_VERIFIED", "Please verify OTP before setting password", data));
+
+                return res.status(403).send(ErrorResponse.encode({
+                    success: false,
+                    error: {
+                        code: "OTP_NOT_VERIFIED",
+                        message: "Please verify OTP before setting password"
+                    }
+                }).finish());
             }
         } catch (error) {
-            return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error"));
+            console.error("isModerator Error:", error);
+            return res.status(500).send(ErrorResponse.encode({
+                success: false,
+                code: "SERVER_ERROR",
+                message: "Internal Server Error"
+            }).finish());
         }
     }
 
     async moderatorBoard(req, res) {
-        res.status(200).send("User Content.");
+        const response = SuccessResponse.encode({
+            success: true,
+            data: {
+                code: "CONTENT",
+                message: "User Content."
+            }
+        }).finish()
+        return res.status(200).send(response);
     }
 
     async updateUser(req, res) {
@@ -1061,7 +1106,7 @@ class Auth {
                 { name: 'image', maxCount: 1 },
                 { name: 'imageBanner', maxCount: 1 }
             ])(req, res, async (err) => {
-                console.log(req.body.email)
+                logger.error(req.body.email)
                 const user = await User.findOne({ email: req.body.email });
 
                 if (!user) {
@@ -1074,7 +1119,7 @@ class Auth {
                         try {
                             await unlinkFile(oldImagePath);
                         } catch (error) {
-                            console.log('Lỗi khi xóa hình ảnh cũ:', error);
+                            logger.error('Lỗi khi xóa hình ảnh cũ:', error);
                         }
                     }
                     user.image = req.files['image'][0].filename;
@@ -1086,7 +1131,7 @@ class Auth {
                         try {
                             await unlinkFile(oldImageBannerPath);
                         } catch (error) {
-                            console.log('Lỗi khi xóa hình ảnh banner cũ:', error);
+                            logger.error('Lỗi khi xóa hình ảnh banner cũ:', error);
                         }
                     }
                     user.imageBanner = req.files['imageBanner'][0].filename;
@@ -1106,7 +1151,7 @@ class Auth {
                 res.status(200).json(formatResponseSuccess(data, true, 'Cập nhật thành công'));
             });
         } catch (error) {
-            console.log(error);
+            logger.error(error);
             return res.status(500).json(formatResponseError({ code: '500' }, false, 'Lỗi máy chủ'));
         }
     }
@@ -1134,7 +1179,7 @@ class Auth {
             res.status(200).json({ id: Date.now(), image: dataArtist.image, albums: albums, isAlbumArtist: true });
 
         } catch (error) {
-            console.log(error)
+            logger.error(error)
             return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
         }
     }
@@ -1143,7 +1188,7 @@ class Auth {
         try {
             const users = await User.find({}, { _id: 1, image: 1, image: 1 });
         } catch (error) {
-            console.log(error)
+            logger.error(error)
             return res.status(500).json(formatResponseError(null, false, 'Lỗi server'));
         }
     }
