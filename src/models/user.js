@@ -28,7 +28,10 @@ const userSchema = new mongoose.Schema({
   tokenDevice: {
     type: String
   },
-
+  role : {
+    type : Number,
+    default: 0
+  },
   OTP: { type: String },
   OTPCreatedTime: { type: Date },
   OTPAttempts: { type: Number, default: 0 },
@@ -37,3 +40,8 @@ const userSchema = new mongoose.Schema({
   loginAttempts: { type: Number, default: 0 }
 })
 module.exports = mongoose.model("User", userSchema);
+
+// role
+// 0 : người nghe
+// 1 : pro
+// 2 : admin

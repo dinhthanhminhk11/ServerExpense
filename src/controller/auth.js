@@ -7,6 +7,7 @@ import song from '../models/song';
 import protobuf from "protobufjs";
 const RevokedToken = require("../models/revokedToken");
 const Logger = require("../util/logger");
+const Constants = require('../util/constants')
 const config = require('../config/auth.config');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -27,15 +28,9 @@ const storage = multer.diskStorage({
     },
 });
 
-const TYPE_OTP_LOGIN = "LOGIN"
-const X_ACCESS_TOKEN = "x-access-token"
 
-const ON_OFF_SETTING_SENT_MAIL_OTP = false
-const ON_OFF_SETTING_LOG_ENABLE = false
-const ON_OFF_SETTING_LOG_OTP = true
-
-const logger = new Logger(ON_OFF_SETTING_LOG_ENABLE);
-const loggerSentOTP = new Logger(ON_OFF_SETTING_LOG_OTP);
+const logger = new Logger(Constants.ON_OFF_SETTING_LOG_ENABLE);
+const loggerSentOTP = new Logger(Constants.ON_OFF_SETTING_LOG_OTP);
 
 const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
@@ -45,7 +40,6 @@ const fileFilter = (req, file, cb) => {
     }
 };
 const upload = multer({ storage, fileFilter });
-
 
 const root = protobuf.loadSync(path.join(__dirname, "../../proto/auth.proto"));
 const AuthRequest = root.lookupType("AuthRequest");
@@ -58,20 +52,21 @@ class Auth {
         try {
             logger.error("tool encrypt data")
             // const text = "{\"email\" : \"quanvd31102002@gmail.com\" , \"password\" : \"quan3110\"}"
-            const text = "{\"email\" : \"dinhthanhminhk11@gmail.com\"}"
+            // const text = "{\"email\" : \"dinhthanhminhk11@gmail.com\"}"
+            const text = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3Y2MwODk0OTc1YTFlZmY3ZmNmY2FiMiIsImlhdCI6MTc0MTU5MjI2MSwiZXhwIjoxNzQyMTk3MDYxfQ.KxK6uUNfyZwP4d9hR2YnmSRKwzcRfKOwQRI7jjy1tyo"
             let textEncrpyt = encrypt.encryptData(text)
 
             let textDecrypt = encrypt.decryptData(textEncrpyt)
 
             try {
-                const { email, password } = JSON.parse(textDecrypt);
+                // const { email, password } = JSON.parse(textDecrypt);
 
 
 
-                const user = await User.findOne({ email }).lean();
-                const accessToken = "xyz123token"
+                // const user = await User.findOne({ email }).lean();
+                // const accessToken = "xyz123token"
 
-                const text = formatUserData({}, accessToken)
+                // const text = formatUserData({}, accessToken)
 
                 logger.error(text);
                 return res.status(200).json({
@@ -166,7 +161,7 @@ class Auth {
                 }).finish());
             }
 
-            const exist_email = await User.findOne({ email });
+            const exist_email = await User.findOne({ email, role: { $in: [0, 1] } });
             if (exist_email) {
                 logger.error("EMAIL_ALREADY_EXISTS")
                 return res.status(409).send(ErrorResponse.encode({
@@ -183,9 +178,9 @@ class Auth {
             const user = new User({ email, OTP: hashedOTP });
 
             await user.save();
-            loggerSentOTP.info("OTP sent: "+ OTP);
+            loggerSentOTP.info("OTP sent: " + OTP);
 
-            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+            if (Constants.ON_OFF_SETTING_SENT_MAIL_OTP) {
                 try {
                     await sendOTP(email, OTP);
                 } catch (err) {
@@ -338,7 +333,7 @@ class Auth {
                 }
             );
 
-            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+            if (Constants.ON_OFF_SETTING_SENT_MAIL_OTP) {
                 try {
                     await sendOTP(email, OTP);
                 } catch (err) {
@@ -429,7 +424,7 @@ class Auth {
 
             const currentTime = new Date();
             const user = await User.findOneAndUpdate(
-                { email },
+                { email, role: { $in: [0, 1] } },
                 {
                     $set: {
                         ...(currentTime >= user?.blockUntil ? { isBlocked: false, OTPAttempts: 0 } : {})
@@ -502,8 +497,8 @@ class Auth {
 
             let response
 
-            if (type === TYPE_OTP_LOGIN) {
-                const accessToken = jwt.sign({ id: updatedUser.id }, config.secret);
+            if (type === Constants.TYPE_OTP_LOGIN) {
+                const accessToken = jwt.sign({ id: updatedUser.id }, config.secret, { expiresIn: "7d" });
                 const text = formatUserData({}, accessToken);
 
                 response = SuccessResponse.encode({
@@ -608,7 +603,7 @@ class Auth {
 
             // Lấy user và cập nhật nếu cần thiết
             const user = await User.findOneAndUpdate(
-                { email },
+                { email, role: { $in: [0, 1] } },
                 {
                     $set: {
                         ...(currentTime >= user?.blockUntil ? { isBlocked: false, OTPAttempts: 0 } : {})
@@ -668,7 +663,7 @@ class Auth {
 
             await User.updateOne({ email }, updateData);
 
-            if (ON_OFF_SETTING_SENT_MAIL_OTP) {
+            if (Constants.ON_OFF_SETTING_SENT_MAIL_OTP) {
                 try {
                     await sendOTP(email, OTP);
                 } catch (err) {
@@ -772,7 +767,7 @@ class Auth {
             const currentTime = new Date();
 
             const user = await User.findOneAndUpdate(
-                { email },
+                { email, role: { $in: [0, 1] } },
                 {
                     $set: {
                         ...(currentTime >= user?.blockUntil ? { isBlocked: false, loginAttempts: 0 } : {})
@@ -837,7 +832,7 @@ class Auth {
 
             await User.updateOne({ email }, { $set: { loginAttempts: 0 } });
 
-            const accessToken = jwt.sign({ id: user.id }, config.secret);
+            const accessToken = jwt.sign({ id: user.id }, config.secret, { expiresIn: "7d" });
 
             logger.success(`User ${email} logged in successfully`);
 
@@ -878,7 +873,32 @@ class Auth {
                 }).finish());
             }
 
-            const { token } = request;
+            const { data } = request;
+
+            if (!data) {
+                return res.status(400).send(ErrorResponse.encode({
+                    success: false,
+                    error: {
+                        code: "TOKEN_MISSING",
+                        message: "Token is required"
+                    }
+                }).finish());
+            }
+
+            let decryptedData;
+            try {
+                decryptedData = JSON.parse(encrypt.decryptData(data));
+            } catch (err) {
+                return res.status(400).send(ErrorResponse.encode({
+                    success: false,
+                    error: {
+                        code: "DATA_NOT_DECRYPT",
+                        message: "Invalid decrypted data format"
+                    }
+                }).finish());
+            }
+
+            const { token } = decryptedData;
 
             if (!token) {
                 return res.status(400).send(ErrorResponse.encode({
@@ -889,9 +909,22 @@ class Auth {
 
             try {
                 const decoded = jwt.verify(token, config.secret);
-                const hashedToken = encrypt.hashData(token);
+                const hashedToken = encrypt.encryptData(token);
 
-                await RevokedToken.create({ token: hashedToken, expiresAt: new Date(decoded.exp * 1000) });
+                const expiresAt = decoded.exp ? new Date(decoded.exp * 1000) : null;
+
+                logger.info(`expiresAt ${decoded.exp}`);
+                logger.info(`decoded.exp * 1000 ${new Date(decoded.exp * 1000)}`);
+
+                if (!expiresAt || isNaN(expiresAt.getTime())) {
+                    logger.error(`Invalid token expiration date`);
+                    return res.status(400).send(ErrorResponse.encode({
+                        success: false,
+                        error: { code: "INVALID_EXPIRATION", message: "Invalid token expiration date" }
+                    }).finish());
+                }
+
+                await RevokedToken.create({ token: hashedToken, expiresAt });
 
                 logger.error(`User ${decoded.id} logged out`);
 
@@ -901,6 +934,7 @@ class Auth {
                 }).finish());
 
             } catch (err) {
+                logger.error(err)
                 return res.status(401).send(ErrorResponse.encode({
                     success: false,
                     error: { code: "INVALID_TOKEN", message: "Invalid or expired token" }
@@ -973,7 +1007,7 @@ class Auth {
                 }).finish());
             }
 
-            const user = await User.findOne({ email });
+            const user = await User.findOne({ email, role: { $in: [0, 1] } });
 
             if (!user) {
                 return res.status(409).send(ErrorResponse.encode({
@@ -1025,7 +1059,7 @@ class Auth {
         logger.warn("=========================================");
         logger.warn("Call verifyToken");
 
-        let token = req.headers[X_ACCESS_TOKEN];
+        let token = req.headers[Constants.X_ACCESS_TOKEN];
         const tokenDecrypt = encrypt.decryptData(token)
         if (!tokenDecrypt) {
             return res.status(403).json(formatResponseError("NOT_TOKEN", "No token provided!"));
@@ -1211,6 +1245,7 @@ const formatUserData = (user, accessToken) => {
         imageBanner: user.imageBanner,
         phone: user.phone,
         email: user.email,
+        role: user.role,
         accessToken: accessToken
     };
 
