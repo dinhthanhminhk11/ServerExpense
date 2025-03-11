@@ -2,6 +2,8 @@
 node_modules/
 audio/
 decryption/
+uploads/
+build/
 
 # Logs
 logs

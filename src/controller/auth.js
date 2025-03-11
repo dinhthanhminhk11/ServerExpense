@@ -52,11 +52,12 @@ class Auth {
         try {
             logger.error("tool encrypt data")
             // const text = "{\"email\" : \"quanvd31102002@gmail.com\" , \"password\" : \"quan3110\"}"
+            const text = "{\"fullName\" : \"Minh Madlife\" , \"phone\" : \"0369069842\"}"
             // const text = "{\"email\" : \"dinhthanhminhk11@gmail.com\"}"
-            const text = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3Y2MwODk0OTc1YTFlZmY3ZmNmY2FiMiIsImlhdCI6MTc0MTU5MjI2MSwiZXhwIjoxNzQyMTk3MDYxfQ.KxK6uUNfyZwP4d9hR2YnmSRKwzcRfKOwQRI7jjy1tyo"
+            // const text = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3Y2MwODk0OTc1YTFlZmY3ZmNmY2FiMiIsImlhdCI6MTc0MTU5MjI2MSwiZXhwIjoxNzQyMTk3MDYxfQ.KxK6uUNfyZwP4d9hR2YnmSRKwzcRfKOwQRI7jjy1tyo"
             let textEncrpyt = encrypt.encryptData(text)
 
-            let textDecrypt = encrypt.decryptData(textEncrpyt)
+            let textDecrypt = encrypt.decryptData("pJujPmIyCMj7cZZOCegQP/KyrfI6xhF1UcZyGEUW2w1e70NF6tGHdZfF0I9kX3i1TdmvXL7KN0zG2PwVKww6Eix2u+g4mAh2IuyAPjZfdaMu1GIindMKsw5NILrDXNvdF6E7ScERRnZGBBObIevq8oYIA2jTHmFvnsn/1Y76hWZ8YL7IRFkyBRRBf1xC0iDpF4xKxJHYODHWWzv6DFf+SDk2NjLE635UkuCAhq68gmk=")
 
             try {
                 // const { email, password } = JSON.parse(textDecrypt);
@@ -70,7 +71,7 @@ class Auth {
 
                 logger.error(text);
                 return res.status(200).json({
-                    "textEncrpyt": textEncrpyt
+                    "textEncrpyt": textDecrypt
                 })
 
 
@@ -1056,27 +1057,32 @@ class Auth {
     }
 
     async verifyToken(req, res, next) {
-        logger.warn("=========================================");
-        logger.warn("Call verifyToken");
+        try {
+            logger.warn("=========================================");
+            logger.warn("Call verifyToken");
 
-        let token = req.headers[Constants.X_ACCESS_TOKEN];
-        const tokenDecrypt = encrypt.decryptData(token)
-        if (!tokenDecrypt) {
-            return res.status(403).json(formatResponseError("NOT_TOKEN", "No token provided!"));
-        }
-
-        const revokedToken = await RevokedToken.findOne({ token: encrypt.encryptData(tokenDecrypt) });
-        if (revokedToken) {
-            return res.status(401).send({ message: "Unauthorized! Token has been revoked." });
-        }
-
-        jwt.verify(tokenDecrypt, config.secret, (err, decoded) => {
-            if (err) {
-                return res.status(401).json(formatResponseError("UNAUTHORIZED", "Unauthorized!"));
+            let token = req.headers[Constants.X_ACCESS_TOKEN];
+            const tokenDecrypt = encrypt.decryptData(token)
+            if (!tokenDecrypt) {
+                return res.status(403).json(formatResponseError("NOT_TOKEN", "No token provided!"));
             }
-            req.userId = decoded.id;
-            next();
-        });
+
+            const revokedToken = await RevokedToken.findOne({ token: encrypt.encryptData(tokenDecrypt) });
+            if (revokedToken) {
+                return res.status(401).send({ message: "Unauthorized! Token has been revoked." });
+            }
+
+            jwt.verify(tokenDecrypt, config.secret, (err, decoded) => {
+                if (err) {
+                    return res.status(401).json(formatResponseError("UNAUTHORIZED", "Unauthorized!"));
+                }
+                req.userId = decoded.id;
+                next();
+            });
+        } catch (error) {
+            logger.error("verifyToken " + error);
+            return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error!"));
+        }
     }
 
     async isModerator(req, res) {
@@ -1140,11 +1146,11 @@ class Auth {
                 { name: 'image', maxCount: 1 },
                 { name: 'imageBanner', maxCount: 1 }
             ])(req, res, async (err) => {
-                logger.error(req.body.email)
-                const user = await User.findOne({ email: req.body.email });
+                logger.info("IdUser "+req.userId)
+                const user = await User.findById(req.userId);
 
                 if (!user) {
-                    return res.status(404).json(formatResponseError({ code: '404' }, false, 'Người dùng không tồn tại'));
+                    return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist!"));
                 }
 
                 if (req.files && req.files['image']) {
@@ -1153,7 +1159,7 @@ class Auth {
                         try {
                             await unlinkFile(oldImagePath);
                         } catch (error) {
-                            logger.error('Lỗi khi xóa hình ảnh cũ:', error);
+                            logger.error('Error delete old image:', error);
                         }
                     }
                     user.image = req.files['image'][0].filename;
@@ -1165,28 +1171,53 @@ class Auth {
                         try {
                             await unlinkFile(oldImageBannerPath);
                         } catch (error) {
-                            logger.error('Lỗi khi xóa hình ảnh banner cũ:', error);
+                            logger.error('Error delete old banner image:', error);
                         }
                     }
                     user.imageBanner = req.files['imageBanner'][0].filename;
                 }
 
-                if (req.body.fullName) {
-                    user.fullName = req.body.fullName;
+                const dataRequest = req.body.data
+
+                if (dataRequest) {
+                    let decryptedData;
+                    try {
+                        decryptedData = JSON.parse(encrypt.decryptData(dataRequest));
+                    } catch (err) {
+                        logger.error("DATA_NOT_DECRYPT " + err)
+                        return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format!"));
+                    }
+
+                    const { fullName, phone } = decryptedData;
+
+                    if (fullName) {
+                        user.fullName = fullName;
+                    }
+                    if (phone) {
+                        user.phone = phone;
+                    }
                 }
 
                 const updatedUser = await user.save();
                 const data = {
                     fullName: updatedUser.fullName,
+                    phone: updatedUser.phone,
                     image: req.files && req.files['image'] ? req.files['image'][0].filename : user.image,
                     imageBanner: req.files && req.files['imageBanner'] ? req.files['imageBanner'][0].filename : user.imageBanner,
                 };
 
-                res.status(200).json(formatResponseSuccess(data, true, 'Cập nhật thành công'));
+                const text = formatUserData(data);
+                const textEncrpyt = encrypt.encryptData(text)
+            
+                return res.status(200).json(formatResponseSuccess(
+                    "UPDATE_SUCCESS",
+                    "update data success",
+                    textEncrpyt
+                ));
             });
         } catch (error) {
             logger.error(error);
-            return res.status(500).json(formatResponseError({ code: '500' }, false, 'Lỗi máy chủ'));
+            return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error!"));
         }
     }
 

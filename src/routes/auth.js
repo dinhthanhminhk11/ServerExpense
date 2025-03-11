@@ -13,8 +13,8 @@ router.post('/auth/resentOtp', platformCheck(['android']), User.gennerateOTP);
 router.post('/auth/logout', platformCheck(['android']), User.logout);
 // router.get('/auth/testLogin', platformCheck(['web']),  User.testLogin);
 router.get('/auth/testLogin', User.testLogin);
-router.patch('/auth/updateUser', User.updateUser);
+router.patch('/auth/updateUser', User.verifyToken, User.updateUser);
 
-router.get('/auth/getUserByToken', User.verifyToken, User.isModerator, User.moderatorBoard);
+router.get('/auth/getUserByToken', platformCheck(['android']), User.verifyToken, User.isModerator, User.moderatorBoard);
 
 export default router;
