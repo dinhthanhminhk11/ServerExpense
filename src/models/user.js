@@ -28,20 +28,25 @@ const userSchema = new mongoose.Schema({
   tokenDevice: {
     type: String
   },
-  role : {
-    type : Number,
+  role: {
+    type: Number,
     default: 0
-  },
+  },// role
+  // 0 : người nghe
+  // 1 : pro
+  // 2 : admin
   OTP: { type: String },
   OTPCreatedTime: { type: Date },
   OTPAttempts: { type: Number, default: 0 },
   isBlocked: { type: Boolean, default: false },
   blockUntil: { type: Date },
-  loginAttempts: { type: Number, default: 0 }
-})
+  loginAttempts: { type: Number, default: 0 },
+
+  uploadedSongs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }],
+  playlists: [{ type: mongoose.Schema.Types.ObjectId, ref: "Playlist" }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+}, { timestamps: true })
 module.exports = mongoose.model("User", userSchema);
 
-// role
-// 0 : người nghe
-// 1 : pro
-// 2 : admin
+

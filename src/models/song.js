@@ -1,54 +1,19 @@
 const mongoose = require("mongoose");
+
 const songSchema = new mongoose.Schema({
-    id :{
-        type: Number,
-        default: Date.now()
-    },
-    title : {
-        type: String
-    },
-    trackNumber: {
-        type: Number
-    },
-    year: {
-        type: Number,
-        default: 2024
-    },
-    duration: {
-        type: Number
-    },
-    data: {
-        type: String
-    },
-    dateModified: {
-        type: Number,
-        default : Date.now()
-    },
-    albumIdString: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Album'
-    },
-    albumId: {
-        type: Number
-    },
-    albumName: {
-        type: String
-    },
-    artistId: {
-        type: Number
-    },
-    artistName: {
-        type: String
-    },
-    composer: {
-        type: String
-    },
-    albumArtist: {
-        type: String
-    },
-    dataPath: {
-        type: String
-    },
-})
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    caption: { type: String, required: true },
+    artist: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    album: { type: mongoose.Schema.Types.ObjectId, ref: "Album" },
+    genres: [{ type: mongoose.Schema.Types.ObjectId, ref: "Genre" }],
+    fileUrl: { type: String, required: true },
+    coverImage: { type: String },
+    duration: { type: Number },
+    likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "Like" }],
+    comments: [{ type: mongoose.Schema.Types.ObjectId, ref: "Comment" }],
+    plays: { type: Number, default: 0 },
+    isPublic: { type: Boolean, default: true }
+}, { timestamps: true });
 
 module.exports = mongoose.model("Song", songSchema);

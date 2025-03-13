@@ -89,8 +89,6 @@ class SongClass {
                         return;
                     }
 
-
-
                     exec('openssl rand -hex 16', (error, stdout, stderr) => {
                         if (error) {
                             console.error(`Lỗi: ${error.message}`);

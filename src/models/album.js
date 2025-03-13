@@ -1,24 +1,11 @@
 const mongoose = require("mongoose");
-const currentYear = new Date().getFullYear();
+
 const albumSchema = new mongoose.Schema({
-    idAlbum: {
-        type: Number,
-        default : Date.now()
-    },
-    albumName: {
-        type: String
-    },
-    artistId: {
-        type: Number
-    },
-    releaseYear: {
-        type: Number,
-        default :currentYear
-    },
-    artistIdString: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    },
-})
+  title: { type: String, required: true },
+  artist: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, 
+  songs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Song" }], 
+  releaseDate: { type: Date, default: Date.now }, 
+  coverImage: { type: String }, 
+}, { timestamps: true });
 
 module.exports = mongoose.model("Album", albumSchema);
