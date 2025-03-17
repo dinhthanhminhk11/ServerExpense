@@ -46,7 +46,6 @@ const AuthRequest = root.lookupType("AuthRequest");
 const ErrorResponse = root.lookupType("ErrorResponse");
 const SuccessResponse = root.lookupType("SuccessResponse");
 
-
 class Auth {
     async testLogin(req, res) {
         try {
@@ -101,11 +100,11 @@ class Auth {
                 const buffer = req.body;
                 request = AuthRequest.decode(new Uint8Array(buffer));
             } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err)
+                logger.error(Constants.INVALID_PROTOBUF + err)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -117,7 +116,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -132,7 +131,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -141,22 +140,22 @@ class Auth {
             const { email } = decryptedData;
 
             if (!email || typeof email !== "string") {
-                logger.error("EMAIL_MISSING")
+                logger.error(Constants.EMAIL_MISSING)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_MISSING",
+                        code: Constants.EMAIL_MISSING,
                         message: "Email is required"
                     }
                 }).finish());
             }
 
             if (!isGmail(email)) {
-                logger.error("EMAIL_NOT_FORMAT")
+                logger.error(Constants.EMAIL_NOT_FORMAT)
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -168,7 +167,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_ALREADY_EXISTS",
+                        code: Constants.EMAIL_ALREADY_EXISTS,
                         message: "Email already exists"
                     }
                 }).finish());
@@ -189,7 +188,7 @@ class Auth {
                     return res.status(500).send(ErrorResponse.encode({
                         success: false,
                         error: {
-                            code: "OTP_SEND_FAIL",
+                            code: Constants.OTP_SEND_FAIL,
                             message: "Failed to send OTP"
                         }
                     }).finish());
@@ -199,7 +198,7 @@ class Auth {
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: "USER_REGISTER_SUCCESS",
+                    code: Constants.USER_REGISTER_SUCCESS,
                     message: "User registered successfully.",
                     details: {
                         verified: user.verified
@@ -216,7 +215,7 @@ class Auth {
             logger.error("Register Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -236,7 +235,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -248,7 +247,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -261,7 +260,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -273,7 +272,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_MISSING",
+                        code: Constants.EMAIL_MISSING,
                         message: "Email is required"
                     }
                 }).finish());
@@ -283,7 +282,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -295,7 +294,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -305,7 +304,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "ACCOUNT_LOCKED",
+                        code: Constants.ACCOUNT_LOCKED,
                         message: "Account locked. Try it after a while."
                     }
                 }).finish());
@@ -315,7 +314,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_LIMIT",
+                        code: Constants.OTP_LIMIT,
                         message: "Requires a minimum of 1 minute interval between OTP requests."
                     }
                 }).finish());
@@ -341,7 +340,7 @@ class Auth {
                     return res.status(500).send(ErrorResponse.encode({
                         success: false,
                         error: {
-                            code: "OTP_SEND_FAIL",
+                            code: Constants.OTP_SEND_FAIL,
                             message: "Failed to send OTP"
                         }
                     }).finish());
@@ -354,7 +353,7 @@ class Auth {
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: "OTP_RECENT_SUCCESS",
+                    code: Constants.OTP_RECENT_SUCCESS,
                     message: "OTP sent successfully."
                 }
             }).finish()
@@ -380,7 +379,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -392,7 +391,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -405,7 +404,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -417,7 +416,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -438,7 +437,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -448,7 +447,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "ACCOUNT_LOCKED",
+                        code: Constants.ACCOUNT_LOCKED,
                         message: "Account locked. Try it after a while."
                     }
                 }).finish());
@@ -471,7 +470,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_NOT_VALID",
+                        code: Constants.OTP_NOT_VALID,
                         message: "OTP is not valid."
                     }
                 }).finish());
@@ -481,7 +480,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_EXPIRED",
+                        code: Constants.OTP_EXPIRED,
                         message: "OTP expired."
                     }
                 }).finish());
@@ -505,7 +504,7 @@ class Auth {
                 response = SuccessResponse.encode({
                     success: true,
                     data: {
-                        code: "LOGIN_SUCCESS",
+                        code: Constants.LOGIN_SUCCESS,
                         message: "Login successful.",
                         details: { data: encrypt.encryptData(text) }
                     }
@@ -514,7 +513,7 @@ class Auth {
                 response = SuccessResponse.encode({
                     success: true,
                     data: {
-                        code: "OTP_CONFIRMED",
+                        code: Constants.OTP_CONFIRMED,
                         message: "Confirmed successfully.",
                         details: { type: type }
                     }
@@ -527,7 +526,7 @@ class Auth {
             logger.error(err);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -547,7 +546,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -559,7 +558,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -572,7 +571,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -584,7 +583,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_MISSING",
+                        code: Constants.EMAIL_MISSING,
                         message: "Email is required"
                     }
                 }).finish());
@@ -594,7 +593,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -617,7 +616,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -628,7 +627,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "ACCOUNT_LOCKED",
+                        code: Constants.ACCOUNT_LOCKED,
                         message: "Account locked. Try it after a while."
                     }
                 }).finish());
@@ -638,7 +637,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_LIMIT",
+                        code: Constants.OTP_LIMIT,
                         message: "Requires a minimum of 1 minute interval between OTP requests."
                     }
                 }).finish());
@@ -671,7 +670,7 @@ class Auth {
                     return res.status(500).send(ErrorResponse.encode({
                         success: false,
                         error: {
-                            code: "OTP_SEND_FAIL",
+                            code: Constants.OTP_SEND_FAIL,
                             message: "Failed to send OTP"
                         }
                     }).finish());
@@ -684,7 +683,7 @@ class Auth {
                 return res.status(403).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "ACCOUNT_CAN_NOT_LOGIN",
+                        code: Constants.ACCOUNT_CAN_NOT_LOGIN,
                         message: "Unverified accounts require authentication"
                     }
                 }).finish());
@@ -693,7 +692,7 @@ class Auth {
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: "ACCOUNT_CAN_LOGIN",
+                    code: Constants.ACCOUNT_CAN_LOGIN,
                     message: "Authenticated accounts can log in"
                 }
             }).finish()
@@ -702,7 +701,7 @@ class Auth {
             console.error("LoginWithOtp Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -722,7 +721,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -734,7 +733,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -747,7 +746,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -759,7 +758,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -781,7 +780,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -792,7 +791,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "ACCOUNT_LOCKED",
+                        code: Constants.ACCOUNT_LOCKED,
                         message: "Account locked. Try it after a while."
                     }
                 }).finish());
@@ -802,7 +801,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "PASSWORD_NOT_SET",
+                        code: Constants.PASSWORD_NOT_SET,
                         message: "Password is not set for this account."
                     }
                 }).finish());
@@ -825,7 +824,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "LOGIN_ERROR",
+                        code: Constants.LOGIN_ERROR,
                         message: "Account or password is incorrect."
                     }
                 }).finish());
@@ -841,7 +840,7 @@ class Auth {
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: "LOGIN_SUCCESS",
+                    code: Constants.LOGIN_SUCCESS,
                     message: "Login successful.",
                     details: { data: encrypt.encryptData(text) }
                 }
@@ -851,7 +850,7 @@ class Auth {
             console.error("loginWithPass Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -870,7 +869,7 @@ class Auth {
                 logger.error("INVALID_PROTOBUF " + err);
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
-                    error: { code: "INVALID_PROTOBUF", message: "Invalid Protobuf format" }
+                    error: { code: Constants.INVALID_PROTOBUF, message: "Invalid Protobuf format" }
                 }).finish());
             }
 
@@ -880,7 +879,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "TOKEN_MISSING",
+                        code: Constants.TOKEN_MISSING,
                         message: "Token is required"
                     }
                 }).finish());
@@ -893,7 +892,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -904,7 +903,7 @@ class Auth {
             if (!token) {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
-                    error: { code: "TOKEN_MISSING", message: "Token is required" }
+                    error: { code: Constants.TOKEN_MISSING, message: "Token is required" }
                 }).finish());
             }
 
@@ -921,7 +920,7 @@ class Auth {
                     logger.error(`Invalid token expiration date`);
                     return res.status(400).send(ErrorResponse.encode({
                         success: false,
-                        error: { code: "INVALID_EXPIRATION", message: "Invalid token expiration date" }
+                        error: { code: Constants.INVALID_EXPIRATION, message: "Invalid token expiration date" }
                     }).finish());
                 }
 
@@ -931,21 +930,21 @@ class Auth {
 
                 return res.status(200).send(SuccessResponse.encode({
                     success: true,
-                    data: { code: "LOGOUT_SUCCESS", message: "Logout successful." }
+                    data: { code: Constants.LOGIN_SUCCESS, message: "Logout successful." }
                 }).finish());
 
             } catch (err) {
                 logger.error(err)
                 return res.status(401).send(ErrorResponse.encode({
                     success: false,
-                    error: { code: "INVALID_TOKEN", message: "Invalid or expired token" }
+                    error: { code: Constants.INVALID_TOKEN, message: "Invalid or expired token" }
                 }).finish());
             }
         } catch (error) {
             console.error("Logout Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                error: { code: "SERVER_ERROR", message: "Internal Server Error" }
+                error: { code: Constants.SERVER_ERROR, message: "Internal Server Error" }
             }).finish());
         }
     }
@@ -965,7 +964,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "INVALID_PROTOBUF",
+                        code: Constants.INVALID_PROTOBUF,
                         message: "Invalid Protobuf format"
                     }
                 }).finish());
@@ -977,7 +976,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_MISSING",
+                        code: Constants.DATA_MISSING,
                         message: "Missing request data"
                     }
                 }).finish());
@@ -990,7 +989,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "DATA_NOT_DECRYPT",
+                        code: Constants.DATA_NOT_DECRYPT,
                         message: "Invalid decrypted data format"
                     }
                 }).finish());
@@ -1002,7 +1001,7 @@ class Auth {
                 return res.status(400).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_NOT_FORMAT",
+                        code: Constants.EMAIL_NOT_FORMAT,
                         message: "Not a valid Gmail address"
                     }
                 }).finish());
@@ -1014,7 +1013,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -1024,7 +1023,7 @@ class Auth {
                 return res.status(403).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_NOT_VERIFIED",
+                        code: Constants.OTP_NOT_VERIFIED,
                         message: "Please verify OTP before setting password"
                     }
                 }).finish());
@@ -1039,7 +1038,7 @@ class Auth {
             const response = SuccessResponse.encode({
                 success: true,
                 data: {
-                    code: "SETPASS_SUCCESS",
+                    code: Constants.SETPASS_SUCCESS,
                     message: "Set password successful."
                 }
             }).finish()
@@ -1050,7 +1049,7 @@ class Auth {
             console.error("setPassWord Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -1081,7 +1080,7 @@ class Auth {
             });
         } catch (error) {
             logger.error("verifyToken " + error);
-            return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error!"));
+            return res.status(500).json(formatResponseError(Constants.SERVER_ERROR, "Internal Server Error!"));
         }
     }
 
@@ -1093,7 +1092,7 @@ class Auth {
                 return res.status(409).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "EMAIL_DOSE_NOT_EXISTS",
+                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
                         message: "Email does not exist"
                     }
                 }).finish());
@@ -1103,7 +1102,7 @@ class Auth {
                 const response = SuccessResponse.encode({
                     success: true,
                     data: {
-                        code: "LOGIN_SUCCESS",
+                        code: Constants.LOGIN_SUCCESS,
                         message: "Login successful.",
                         details: { data: encrypt.encryptData(text) }
                     }
@@ -1114,7 +1113,7 @@ class Auth {
                 return res.status(403).send(ErrorResponse.encode({
                     success: false,
                     error: {
-                        code: "OTP_NOT_VERIFIED",
+                        code: Constants.OTP_NOT_VERIFIED,
                         message: "Please verify OTP before setting password"
                     }
                 }).finish());
@@ -1123,7 +1122,7 @@ class Auth {
             console.error("isModerator Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
-                code: "SERVER_ERROR",
+                code: Constants.SERVER_ERROR,
                 message: "Internal Server Error"
             }).finish());
         }
@@ -1146,11 +1145,11 @@ class Auth {
                 { name: 'image', maxCount: 1 },
                 { name: 'imageBanner', maxCount: 1 }
             ])(req, res, async (err) => {
-                logger.info("IdUser "+req.userId)
+                logger.info("IdUser " + req.userId)
                 const user = await User.findById(req.userId);
 
                 if (!user) {
-                    return res.status(409).json(formatResponseError("EMAIL_DOSE_NOT_EXISTS", "Email does not exist!"));
+                    return res.status(409).json(formatResponseError(Constants.EMAIL_DOSE_NOT_EXISTS, "Email does not exist!"));
                 }
 
                 if (req.files && req.files['image']) {
@@ -1185,7 +1184,7 @@ class Auth {
                         decryptedData = JSON.parse(encrypt.decryptData(dataRequest));
                     } catch (err) {
                         logger.error("DATA_NOT_DECRYPT " + err)
-                        return res.status(400).json(formatResponseError("DATA_NOT_DECRYPT", "Invalid decrypted data format!"));
+                        return res.status(400).json(formatResponseError(Constants.DATA_NOT_DECRYPT, "Invalid decrypted data format!"));
                     }
 
                     const { fullName, phone } = decryptedData;
@@ -1208,16 +1207,16 @@ class Auth {
 
                 const text = formatUserData(data);
                 const textEncrpyt = encrypt.encryptData(text)
-            
+
                 return res.status(200).json(formatResponseSuccess(
-                    "UPDATE_SUCCESS",
+                    Constants.UPDATE_SUCCESS,
                     "update data success",
                     textEncrpyt
                 ));
             });
         } catch (error) {
             logger.error(error);
-            return res.status(500).json(formatResponseError("SERVER_ERROR", "Internal Server Error!"));
+            return res.status(500).json(formatResponseError(Constants.SERVER_ERROR, "Internal Server Error!"));
         }
     }
 
