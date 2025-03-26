@@ -92,99 +92,18 @@ class Auth {
 
     async register(req, res) {
         try {
-            logger.info("=========================================");
-            logger.info("Call register");
-
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error(Constants.INVALID_PROTOBUF + err)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.INVALID_PROTOBUF,
-                        message: "Invalid Protobuf format"
-                    }
-                }).finish());
-            }
-
-            const { data } = request;
-            if (!data) {
-                logger.error("DATA_MISSING ")
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_MISSING,
-                        message: "Missing request data"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                logger.error("DATA_NOT_DECRYPT " + err)
-
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { email } = decryptedData;
-
-            if (!email || typeof email !== "string") {
-                logger.error(Constants.EMAIL_MISSING)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_MISSING,
-                        message: "Email is required"
-                    }
-                }).finish());
-            }
-
-            if (!isGmail(email)) {
-                logger.error(Constants.EMAIL_NOT_FORMAT)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_NOT_FORMAT,
-                        message: "Not a valid Gmail address"
-                    }
-                }).finish());
-            }
-
-            const exist_email = await User.findOne({ email, role: { $in: [0, 1] } });
-            if (exist_email) {
-                logger.error("EMAIL_ALREADY_EXISTS")
-                return res.status(409).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_ALREADY_EXISTS,
-                        message: "Email already exists"
-                    }
-                }).finish());
-            }
-
+            const { email } = req.decryptedData;
+            logger.warn("email " + email)
             const OTP = generateOTP();
             const hashedOTP = bcrypt.hashSync(OTP, 10);
             const user = new User({ email, OTP: hashedOTP });
 
             await user.save();
             loggerSentOTP.info("OTP sent: " + OTP);
-
             if (Constants.ON_OFF_SETTING_SENT_MAIL_OTP) {
                 try {
                     await sendOTP(email, OTP);
                 } catch (err) {
-                    logger.error("OTP_SEND_FAIL " + err)
                     return res.status(500).send(ErrorResponse.encode({
                         success: false,
                         error: {
@@ -200,19 +119,13 @@ class Auth {
                 data: {
                     code: Constants.USER_REGISTER_SUCCESS,
                     message: "User registered successfully.",
-                    details: {
-                        verified: user.verified
-                    }
+                    details: { verified: user.verified }
                 }
-            }).finish()
-            logger.warn("Register response:", response);
+            }).finish();
 
-            const decodeData = SuccessResponse.decode(new Uint8Array(response));
-            logger.warn("Register decode:", decodeData);
             return res.status(200).send(response);
 
         } catch (error) {
-            logger.error("Register Error:", error);
             return res.status(500).send(ErrorResponse.encode({
                 success: false,
                 code: Constants.SERVER_ERROR,
@@ -369,58 +282,7 @@ class Auth {
         try {
             logger.warn("=========================================");
             logger.warn("Call verifyOTP");
-
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.INVALID_PROTOBUF,
-                        message: "Invalid Protobuf format"
-                    }
-                }).finish());
-            }
-
-            const { data } = request;
-
-            if (!data) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_MISSING,
-                        message: "Missing request data"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { email, otp, type } = decryptedData;
-
-            if (!isGmail(email)) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_NOT_FORMAT,
-                        message: "Not a valid Gmail address"
-                    }
-                }).finish());
-            }
+            const { email, otp, type } = req.decryptedData;
 
             const currentTime = new Date();
             const user = await User.findOneAndUpdate(
@@ -537,71 +399,10 @@ class Auth {
             logger.warn("=========================================");
             logger.warn("Call loginWithOtp");
 
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.INVALID_PROTOBUF,
-                        message: "Invalid Protobuf format"
-                    }
-                }).finish());
-            }
-
-            const { data } = request;
-
-            if (!data) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_MISSING,
-                        message: "Missing request data"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { email } = decryptedData;
-
-            if (!email || typeof email !== "string") {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_MISSING,
-                        message: "Email is required"
-                    }
-                }).finish());
-            }
-
-            if (!isGmail(email)) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_NOT_FORMAT,
-                        message: "Not a valid Gmail address"
-                    }
-                }).finish());
-            }
-
+            const { email } = req.decryptedData;
             const currentTime = new Date();
 
-            // Lấy user và cập nhật nếu cần thiết
+           
             const user = await User.findOneAndUpdate(
                 { email, role: { $in: [0, 1] } },
                 {
@@ -712,57 +513,7 @@ class Auth {
             logger.warn("=========================================");
             logger.warn("Call loginWithPass");
 
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.INVALID_PROTOBUF,
-                        message: "Invalid Protobuf format"
-                    }
-                }).finish());
-            }
-
-            const { data } = request;
-
-            if (!data) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_MISSING,
-                        message: "Missing request data"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { email, password } = decryptedData;
-
-            if (!isGmail(email)) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_NOT_FORMAT,
-                        message: "Not a valid Gmail address"
-                    }
-                }).finish());
-            }
+            const { email, password } = req.decryptedData;
 
             const currentTime = new Date();
 
@@ -861,44 +612,7 @@ class Auth {
             logger.warn("=========================================");
             logger.warn("Call logout");
 
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err);
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: { code: Constants.INVALID_PROTOBUF, message: "Invalid Protobuf format" }
-                }).finish());
-            }
-
-            const { data } = request;
-
-            if (!data) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.TOKEN_MISSING,
-                        message: "Token is required"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { token } = decryptedData;
+            const { token } = req.decryptedData;
 
             if (!token) {
                 return res.status(400).send(ErrorResponse.encode({
@@ -954,71 +668,8 @@ class Auth {
         try {
             logger.warn("=========================================");
             logger.warn("Call setPassWord");
-
-            let request;
-            try {
-                const buffer = req.body;
-                request = AuthRequest.decode(new Uint8Array(buffer));
-            } catch (err) {
-                logger.error("INVALID_PROTOBUF " + err)
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.INVALID_PROTOBUF,
-                        message: "Invalid Protobuf format"
-                    }
-                }).finish());
-            }
-
-            const { data } = request;
-
-            if (!data) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_MISSING,
-                        message: "Missing request data"
-                    }
-                }).finish());
-            }
-
-            let decryptedData;
-            try {
-                decryptedData = JSON.parse(encrypt.decryptData(data));
-            } catch (err) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.DATA_NOT_DECRYPT,
-                        message: "Invalid decrypted data format"
-                    }
-                }).finish());
-            }
-
-            const { email, password } = decryptedData;
-
-            if (!isGmail(email)) {
-                return res.status(400).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_NOT_FORMAT,
-                        message: "Not a valid Gmail address"
-                    }
-                }).finish());
-            }
-
-            const user = await User.findOne({ email, role: { $in: [0, 1] } });
-
-            if (!user) {
-                return res.status(409).send(ErrorResponse.encode({
-                    success: false,
-                    error: {
-                        code: Constants.EMAIL_DOSE_NOT_EXISTS,
-                        message: "Email does not exist"
-                    }
-                }).finish());
-            }
-
+            const {  password } = req.decryptedData;
+            const user = req.user
             if (!user.verified) {
                 return res.status(403).send(ErrorResponse.encode({
                     success: false,
