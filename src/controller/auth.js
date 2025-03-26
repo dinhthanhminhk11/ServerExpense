@@ -644,7 +644,7 @@ class Auth {
 
                 return res.status(200).send(SuccessResponse.encode({
                     success: true,
-                    data: { code: Constants.LOGIN_SUCCESS, message: "Logout successful." }
+                    data: { code: Constants.LOGOUT_SUCCESS, message: "Logout successful." }
                 }).finish());
 
             } catch (err) {

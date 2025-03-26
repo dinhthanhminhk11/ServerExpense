@@ -34,6 +34,7 @@ class Constants {
     static OTP_CONFIRMED = "OTP_CONFIRMED";
     static SETPASS_SUCCESS = "SETPASS_SUCCESS";
     static OTP_RECENT_SUCCESS = "OTP_RECENT_SUCCESS";
+    static LOGOUT_SUCCESS = "LOGOUT_SUCCESS";
 
 
   }
