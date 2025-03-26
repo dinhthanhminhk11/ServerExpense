@@ -1,16 +1,29 @@
 import { formatResponseError, formatResponseSuccess, formatResponseSuccessNoData } from '../config';
 import Album from '../models/album';
 import Song from '../models/song';
+import fileService from '../services/fileService';
 const mm = require('music-metadata');
 const fs = require('fs');
 const crypto = require('crypto')
 const multer = require('multer');
 const path = require('path');
 const { promisify } = require('util');
+const Logger = require("../util/logger");
+const Constants = require('../util/constants')
+
+const appendFileAsync = promisify(fs.appendFile);
+const unlinkAsync = promisify(fs.unlink);
+const readFileAsync = promisify(fs.readFile);
+
 const exec = promisify(require('child_process').exec);
 const { execq } = require('child_process');
 const os = require('os');
 const { spawn } = require('child_process');
+
+
+const logger = new Logger(Constants.ON_OFF_SETTING_LOG_ENABLE);
+
+
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, 'audio/');
@@ -30,6 +43,10 @@ const fileFilter = (req, file, cb) => {
 };
 const upload = multer({ storage, fileFilter });
 
+
+const uploadsDir = path.join(__dirname, "../../audio_uploads");
+const completedDir = path.join(uploadsDir, "completed");
+const chunksDir = path.join(uploadsDir, "chunks");
 
 class SongClass {
     async addSong(req, res) {
@@ -53,7 +70,7 @@ class SongClass {
                 console.log(durationInSeconds)
                 // const durationInSecondsRounded = Math.round(durationInSeconds);
                 const durationInMillis = Math.round(durationInSeconds * 1000);
-                const dataAlbum = await Album.findById(req.body.albumIdString) 
+                const dataAlbum = await Album.findById(req.body.albumIdString)
                 const dataSong = {
                     title: req.body.title,
                     trackNumber: req.body.trackNumber,
@@ -61,12 +78,12 @@ class SongClass {
                     data: `${req.file.filename}`,
                     dateModified: Date.now(),
                     artistId: Date.now(),
-                    albumName : dataAlbum.albumName,
-                    artistName : "Test artistName",
-                    composer : "Test composer",
-                    albumArtist : "Test albumArtist",
-                    albumId :  dataAlbum.idAlbum,
-                    albumIdString : req.body.albumIdString
+                    albumName: dataAlbum.albumName,
+                    artistName: "Test artistName",
+                    composer: "Test composer",
+                    albumArtist: "Test albumArtist",
+                    albumId: dataAlbum.idAlbum,
+                    albumIdString: req.body.albumIdString
                 };
                 const saveSong = await new Song(dataSong).save();
                 const songId = saveSong._id.toString();
@@ -141,6 +158,7 @@ class SongClass {
             return res.status(500).json(formatResponseError({ code: '500' }, false, 'Lỗi xảy ra trong quá trình thực thi'));
         }
     }
+
     async getAllSong(req, res) {
         try {
             const data = await Song.find()
@@ -154,6 +172,135 @@ class SongClass {
             );
         }
     }
+   
+    async checkFile(req, res) {
+        try {
+            const { fileHash } = req.params;
+            const mergedFile = fs.readdirSync(completedDir).find(file => file.startsWith(fileHash));
+    
+            if (mergedFile) {
+                const filePath = path.join(completedDir, mergedFile);
+                console.log(`File đã tồn tại: ${filePath} danh sách ${mergedFile}`);
+                return res.json({ exists: true, filePath, fileName: mergedFile });
+            }
+    
+            const chunkFolder = path.join(chunksDir, fileHash);
+            if (!fs.existsSync(chunkFolder)) {
+                console.log(`Không tìm thấy thư mục chunk: ${chunkFolder}`);
+                return res.json({ exists: false, uploadedChunks: [] });
+            }
+    
+            // Lấy danh sách chunk đã upload
+            const uploadedChunks = fs.readdirSync(chunkFolder)
+                .filter(file => file.startsWith("chunk_")) // Chỉ lấy file chunk
+                .map(file => parseInt(file.replace("chunk_", ""))); // Lấy index của chunk
+    
+            console.log(`File chưa merge, đã upload ${uploadedChunks.length} chunks`);
+    
+            return res.json({ exists: false, uploadedChunks });
+    
+        } catch (err) {
+            logger.error("Lỗi checkFile:", err);
+            return res.status(500).json({ success: false, error: "Internal Server Error!" });
+        }
+    }
+
+    async uploadChunk(req, res) {
+        try {
+            logger.warn("📌 call uploadChunk");
+            console.log("Params:", req.params);
+    
+            const { fileHash, chunkIndex } = req.params;
+    
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: "No file uploaded" });
+            }
+    
+            const chunkFolder = path.join(chunksDir, fileHash);
+            if (!fs.existsSync(chunkFolder)) fs.mkdirSync(chunkFolder, { recursive: true });
+    
+            const chunkPath = path.join(chunkFolder, `chunk_${chunkIndex}`);
+    
+            // Di chuyển file từ thư mục tạm vào thư mục chính xác
+            fs.renameSync(req.file.path, chunkPath);
+    
+            console.log(`✅ Chunk ${chunkIndex} uploaded successfully`);
+    
+            res.json({ success: true, chunkIndex });
+    
+        } catch (err) {
+            console.error("❌ Lỗi uploadChunk:", err);
+            res.status(500).json({ success: false, error: "Internal Server Error!" });
+        }
+    }
+
+    async mergeFile(req, res) {
+        try {
+            const { fileHash, totalChunks, fileName } = req.body.data;
+            const chunkFolder = path.join(chunksDir, fileHash);
+            const filePath = path.join(completedDir, fileName);
+    
+            console.log(`🔹 Bắt đầu merge file: ${filePath}`);
+    
+            if (!fs.existsSync(chunkFolder)) {
+                return res.status(400).json({ success: false, error: "Không tìm thấy thư mục chứa chunk!" });
+            }
+    
+            if (!fs.existsSync(completedDir)) {
+                fs.mkdirSync(completedDir, { recursive: true });
+            }
+    
+            // 🔹 Đảm bảo tất cả các chunk đều tồn tại
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkPath = path.join(chunkFolder, `chunk_${i}`);
+                if (!fs.existsSync(chunkPath)) {
+                    return res.status(400).json({ success: false, error: `Thiếu chunk ${i}!` });
+                }
+            }
+    
+            // 🔹 Tạo file final để merge
+            const writeStream = fs.createWriteStream(filePath, { flags: "w" });
+    
+            const mergeChunks = async () => {
+                for (let i = 0; i < totalChunks; i++) {
+                    const chunkPath = path.join(chunkFolder, `chunk_${i}`);
+                    console.log(`✏️ Đang merge: ${chunkPath}`);
+    
+                    await new Promise((resolve, reject) => {
+                        const readStream = fs.createReadStream(chunkPath);
+                        readStream.pipe(writeStream, { end: false });
+                        readStream.on("end", resolve);
+                        readStream.on("error", reject);
+                    });
+                }
+    
+                // 🔹 Đóng file sau khi merge xong
+                writeStream.end();
+            };
+    
+            writeStream.on("finish", () => {
+                console.log(`✅ Merge hoàn tất: ${filePath}`);
+    
+                // 🔹 Xóa thư mục chứa chunk sau khi merge thành công
+                fs.rmSync(chunkFolder, { recursive: true, force: true });
+    
+                res.json({ success: true, filePath, fileName });
+            });
+    
+            writeStream.on("error", (err) => {
+                console.error("❌ Lỗi khi merge:", err);
+                res.status(500).json({ success: false, error: err.message });
+            });
+    
+            await mergeChunks();
+    
+        } catch (err) {
+            console.error("❌ Lỗi mergeFile:", err);
+            res.status(500).json({ success: false, error: "Internal Server Error!" });
+        }
+    }
+
+
 }
 
 function isValidAudioFile(file) {

@@ -4,6 +4,7 @@ audio/
 decryption/
 uploads/
 build/
+audio_uploads/
 
 # Logs
 logs
