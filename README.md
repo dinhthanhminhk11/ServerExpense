@@ -17,3 +17,14 @@ First, clone the repository from GitHub and navigate into the project folder.
 git clone https://github.com/dinhthanhminhk11/SeverRetroMusic.git
 cd SeverRetroMusic
 
+
+### 2. Install Dependencies
+Run the following command to install project dependencies:
+
+```sh
+npm i
+
+
+
+
+
