@@ -5,7 +5,7 @@ decryption/
 uploads/
 build/
 audio_uploads/
-.env
+.env*
 # Logs
 logs
 *.log
