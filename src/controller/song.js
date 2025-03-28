@@ -19,7 +19,7 @@ const exec = promisify(require('child_process').exec);
 const { execq } = require('child_process');
 const os = require('os');
 const { spawn } = require('child_process');
-
+const FileModel = require("../models/file");
 
 const logger = new Logger(Constants.ON_OFF_SETTING_LOG_ENABLE);
 
@@ -47,6 +47,7 @@ const upload = multer({ storage, fileFilter });
 const uploadsDir = path.join(__dirname, "../../audio_uploads");
 const completedDir = path.join(uploadsDir, "completed");
 const chunksDir = path.join(uploadsDir, "chunks");
+const linkFileUrl = "/audio_uploads/completed/"
 
 class SongClass {
     async addSong(req, res) {
@@ -172,100 +173,138 @@ class SongClass {
             );
         }
     }
-   
+
+
+    // hàm check dir
+    // async checkFile(req, res) {
+    //     try {
+    //         const { fileHash } = req.params;
+    //         const mergedFile = fs.readdirSync(completedDir).find(file => file.startsWith(fileHash));
+
+    //         if (mergedFile) {
+    //             const filePath = path.join(completedDir, mergedFile);
+    //             console.log(`File đã tồn tại: ${filePath} danh sách ${mergedFile}`);
+    //             return res.json({ exists: true, filePath, fileName: mergedFile });
+    //         }
+
+    //         const chunkFolder = path.join(chunksDir, fileHash);
+    //         if (!fs.existsSync(chunkFolder)) {
+    //             console.log(`Không tìm thấy thư mục chunk: ${chunkFolder}`);
+    //             return res.json({ exists: false, uploadedChunks: [] });
+    //         }
+
+    //         // Lấy danh sách chunk đã upload
+    //         const uploadedChunks = fs.readdirSync(chunkFolder)
+    //             .filter(file => file.startsWith("chunk_")) // Chỉ lấy file chunk
+    //             .map(file => parseInt(file.replace("chunk_", ""))); // Lấy index của chunk
+
+    //         console.log(`File chưa merge, đã upload ${uploadedChunks.length} chunks`);
+
+    //         return res.json({ exists: false, uploadedChunks });
+
+    //     } catch (err) {
+    //         logger.error("Lỗi checkFile:", err);
+    //         return res.status(500).json({ success: false, error: "Internal Server Error!" });
+    //     }
+    // }
+
     async checkFile(req, res) {
         try {
             const { fileHash } = req.params;
-            const mergedFile = fs.readdirSync(completedDir).find(file => file.startsWith(fileHash));
-    
-            if (mergedFile) {
-                const filePath = path.join(completedDir, mergedFile);
-                console.log(`File đã tồn tại: ${filePath} danh sách ${mergedFile}`);
-                return res.json({ exists: true, filePath, fileName: mergedFile });
+            const fileRecord = await FileModel.findOne({ file_hash: fileHash });
+            logger.error(`file not exists: ${uploadsDir}`)
+            if (!fileRecord) {
+                logger.error(`file not exists: ${fileHash}`)
+                return res.json({ exists: false, code: "FILE_NOT_EXISTS", uploadedChunks: [] });
             }
-    
-            const chunkFolder = path.join(chunksDir, fileHash);
-            if (!fs.existsSync(chunkFolder)) {
-                console.log(`Không tìm thấy thư mục chunk: ${chunkFolder}`);
-                return res.json({ exists: false, uploadedChunks: [] });
+
+            if (fileRecord.status === "completed") {
+                logger.info(`File exists: ${fileRecord.path}`)
+                return res.json({ exists: true, code: "FILE_EXISTS", filePath: fileRecord.path, fileName: fileRecord.file_name });
             }
-    
-            // Lấy danh sách chunk đã upload
-            const uploadedChunks = fs.readdirSync(chunkFolder)
-                .filter(file => file.startsWith("chunk_")) // Chỉ lấy file chunk
-                .map(file => parseInt(file.replace("chunk_", ""))); // Lấy index của chunk
-    
-            console.log(`File chưa merge, đã upload ${uploadedChunks.length} chunks`);
-    
-            return res.json({ exists: false, uploadedChunks });
-    
+
+            logger.warn(`File not merged, uploaded ${fileRecord.uploaded_chunks.length}/${fileRecord.total_chunks} chunks`)
+
+            return res.json({
+                exists: false,
+                uploadedChunks: fileRecord.uploaded_chunks, code: "FILE_NOT_MERGED"
+            });
+
         } catch (err) {
-            logger.error("Lỗi checkFile:", err);
+            logger.error("Error checkFile:", err);
             return res.status(500).json({ success: false, error: "Internal Server Error!" });
         }
     }
 
+
     async uploadChunk(req, res) {
         try {
-            logger.warn("📌 call uploadChunk");
-            console.log("Params:", req.params);
-    
+            logger.warn("call uploadChunk");
+
             const { fileHash, chunkIndex } = req.params;
-    
+            console.log("chunkIndex:", chunkIndex);
+
             if (!req.file) {
                 return res.status(400).json({ success: false, error: "No file uploaded" });
             }
-    
+
             const chunkFolder = path.join(chunksDir, fileHash);
             if (!fs.existsSync(chunkFolder)) fs.mkdirSync(chunkFolder, { recursive: true });
-    
+
             const chunkPath = path.join(chunkFolder, `chunk_${chunkIndex}`);
-    
-            // Di chuyển file từ thư mục tạm vào thư mục chính xác
+
+            if (fs.existsSync(chunkPath)) {
+                console.log(`Chunk ${chunkIndex} exists, next.`);
+                return res.json({ success: true, chunkIndex, message: "Chunk already uploaded" });
+            }
+
             fs.renameSync(req.file.path, chunkPath);
-    
-            console.log(`✅ Chunk ${chunkIndex} uploaded successfully`);
-    
+
+            await FileModel.updateOne(
+                { file_hash: fileHash },
+                { $addToSet: { uploaded_chunks: parseInt(chunkIndex) } },
+                { upsert: true }
+            );
+
+            console.log(`Chunk ${chunkIndex} uploaded successfully`);
+
             res.json({ success: true, chunkIndex });
-    
+
         } catch (err) {
-            console.error("❌ Lỗi uploadChunk:", err);
+            console.error("Error uploadChunk:", err);
             res.status(500).json({ success: false, error: "Internal Server Error!" });
         }
     }
 
     async mergeFile(req, res) {
         try {
-            const { fileHash, totalChunks, fileName } = req.body.data;
+            const { fileHash, totalChunks, fileName, fileSize } = req.body.data;
             const chunkFolder = path.join(chunksDir, fileHash);
             const filePath = path.join(completedDir, fileName);
-    
-            console.log(`🔹 Bắt đầu merge file: ${filePath}`);
-    
+
+            console.log(`Bắt đầu merge file: ${fileName}`);
+
             if (!fs.existsSync(chunkFolder)) {
-                return res.status(400).json({ success: false, error: "Không tìm thấy thư mục chứa chunk!" });
+                return res.status(400).json({ success: false, error: "Directory containing chunk not found!" });
             }
-    
+
             if (!fs.existsSync(completedDir)) {
                 fs.mkdirSync(completedDir, { recursive: true });
             }
-    
-            // 🔹 Đảm bảo tất cả các chunk đều tồn tại
+
             for (let i = 0; i < totalChunks; i++) {
                 const chunkPath = path.join(chunkFolder, `chunk_${i}`);
                 if (!fs.existsSync(chunkPath)) {
-                    return res.status(400).json({ success: false, error: `Thiếu chunk ${i}!` });
+                    return res.status(400).json({ success: false, error: `Missing  chunk ${i}!` });
                 }
             }
-    
-            // 🔹 Tạo file final để merge
+
             const writeStream = fs.createWriteStream(filePath, { flags: "w" });
-    
+
             const mergeChunks = async () => {
                 for (let i = 0; i < totalChunks; i++) {
                     const chunkPath = path.join(chunkFolder, `chunk_${i}`);
-                    console.log(`✏️ Đang merge: ${chunkPath}`);
-    
+
                     await new Promise((resolve, reject) => {
                         const readStream = fs.createReadStream(chunkPath);
                         readStream.pipe(writeStream, { end: false });
@@ -273,29 +312,39 @@ class SongClass {
                         readStream.on("error", reject);
                     });
                 }
-    
-                // 🔹 Đóng file sau khi merge xong
+
                 writeStream.end();
             };
-    
-            writeStream.on("finish", () => {
-                console.log(`✅ Merge hoàn tất: ${filePath}`);
-    
-                // 🔹 Xóa thư mục chứa chunk sau khi merge thành công
+
+            writeStream.on("finish", async () => {
+                console.log(`Merge success: ${filePath}`);
+
                 fs.rmSync(chunkFolder, { recursive: true, force: true });
-    
-                res.json({ success: true, filePath, fileName });
+
+                await FileModel.findOneAndUpdate(
+                    { file_hash: fileHash },
+                    {
+                        uploaded_chunks : [],
+                        file_name: fileName,
+                        file_size: fileSize,
+                        path: linkFileUrl + fileName,
+                        status: "completed"
+                    },
+                    { upsert: true, new: true }
+                );
+
+                res.json({ success: true, filePath: linkFileUrl + fileName, fileName });
             });
-    
+
             writeStream.on("error", (err) => {
-                console.error("❌ Lỗi khi merge:", err);
+                console.error("Error merge:", err);
                 res.status(500).json({ success: false, error: err.message });
             });
-    
+
             await mergeChunks();
-    
+
         } catch (err) {
-            console.error("❌ Lỗi mergeFile:", err);
+            console.error("Error mergeFile:", err);
             res.status(500).json({ success: false, error: "Internal Server Error!" });
         }
     }
