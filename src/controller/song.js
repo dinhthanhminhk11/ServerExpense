@@ -212,7 +212,6 @@ class SongClass {
         try {
             const { fileHash } = req.params;
             const fileRecord = await FileModel.findOne({ file_hash: fileHash });
-            logger.error(`file not exists: ${uploadsDir}`)
             if (!fileRecord) {
                 logger.error(`file not exists: ${fileHash}`)
                 return res.json({ exists: false, code: "FILE_NOT_EXISTS", uploadedChunks: [] });

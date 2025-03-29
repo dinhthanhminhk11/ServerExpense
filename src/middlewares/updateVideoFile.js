@@ -1,8 +1,12 @@
 const multer = require("multer");
+const path = require('path');
 
-// Cấu hình lưu file tạm
+const uploadsDir = path.join(__dirname, "../../audio_uploads");
+const chunksDir = path.join(uploadsDir, "chunks");
 const storage = multer.diskStorage({
-    destination: "uploads/",
+    destination: (req, file, cb) => {
+        cb(null, chunksDir);
+    },
     filename: (req, file, cb) => {
         cb(null, file.originalname);
     }

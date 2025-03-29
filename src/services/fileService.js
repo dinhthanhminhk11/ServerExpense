@@ -3,14 +3,13 @@ const path = require("path");
 
 const UPLOAD_DIR = path.resolve(__dirname, "../", process.env.UPLOAD_PATH);
 
-// Lưu file từ request body vào thư mục
 exports.saveFile = async (user, filename, fileBuffer) => {
     try {
         const userPath = path.join(UPLOAD_DIR, user);
-        await fs.ensureDir(userPath); // Tạo thư mục nếu chưa có
+        await fs.ensureDir(userPath); 
 
         const filePath = path.join(userPath, filename);
-        await fs.writeFile(filePath, fileBuffer); // Lưu file
+        await fs.writeFile(filePath, fileBuffer); 
 
         return { success: true, filePath };
     } catch (error) {
